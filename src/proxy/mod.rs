@@ -41,12 +41,15 @@ pub enum Error {
     #[error("None of the servers responded")]
     Connect,
 
-    #[error("forwarding failed when {doing} {side}: {err}")]
+    #[error("Forwarding failed when {doing} {side}: {err}")]
     Forward {
         doing: &'static str,
         side: &'static str,
         err: io::Error,
     },
+
+    #[error("could not handle OOB message: {0}")]
+    Oob(io::Error),
 
     #[error("{0}")]
     Other(String),

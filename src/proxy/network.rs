@@ -1,3 +1,5 @@
+use std::mem::ManuallyDrop;
+use std::os::fd::{AsRawFd, FromRawFd};
 use std::{
     ffi::{OsStr, OsString},
     fmt::Display,
@@ -424,6 +426,22 @@ impl MioStream {
             #[cfg(unix)]
             MioStream::Unix(_) => Ok(()),
         }
+    }
+
+    pub fn with_socket2<T, F>(&mut self, f: F) -> io::Result<T>
+    where
+        F: FnOnce(&mut socket2::Socket) -> io::Result<T>,
+    {
+        let fd = match self {
+            MioStream::Tcp(sock) => sock.as_raw_fd(),
+            MioStream::Unix(sock) => sock.as_raw_fd(),
+        };
+        let sock2 = unsafe {
+            // SAFETY: it's clear from above that fd is always a socket.
+            socket2::Socket::from_raw_fd(fd)
+        };
+        let mut dont_drop = ManuallyDrop::new(sock2);
+        f(&mut dont_drop)
     }
 }
 
