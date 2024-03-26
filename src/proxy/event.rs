@@ -53,8 +53,8 @@ impl Direction {
         }
     }
 
-     /// Return 'client' or 'server' depending on where traffic goes
-     pub fn receiver(&self) -> &'static str {
+    /// Return 'client' or 'server' depending on where traffic goes
+    pub fn receiver(&self) -> &'static str {
         match self {
             Direction::Upstream => Self::SERVER,
             Direction::Downstream => Self::CLIENT,
@@ -77,29 +77,18 @@ pub enum MapiEvent {
     },
 
     /// Proxy is connecting to the server
-    Connecting {
-        id: ConnectionId,
-        remote: Addr,
-    },
+    Connecting { id: ConnectionId, remote: Addr },
 
     /// Server has accepted the new connection
-    Connected {
-        id: ConnectionId,
-        peer: Addr,
-    },
+    Connected { id: ConnectionId, peer: Addr },
 
     /// The connection has ended peacefully, no more events on this
     /// [ConnectionId] will be reported.
-    End {
-        id: ConnectionId,
-    },
+    End { id: ConnectionId },
 
     /// Something went wrong in Mapiproxy (not in the client or the server), no
     /// more events on this [ConnectionId] will be reported.
-    Aborted {
-        id: ConnectionId,
-        error: Error,
-    },
+    Aborted { id: ConnectionId, error: Error },
 
     /// Data has been observed flowing from client to server
     /// ([Direction::Upstream]) or from server to client
