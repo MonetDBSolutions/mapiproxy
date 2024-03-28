@@ -17,6 +17,7 @@ use itertools::Itertools;
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 const USAGE: &str = "\
+Choose one of: version, checktag, relnotes, checkreadme
 ";
 
 fn main() -> AResult<()> {

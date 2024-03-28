@@ -113,6 +113,15 @@ impl State {
                     format_args!("{receiver} has stopped receiving data, discarding {n} bytes"),
                 )?;
             }
+
+            MapiEvent::Oob(id, direction, byte) => {
+                let sender = direction.sender();
+                renderer.message(
+                    Some(*id),
+                    Some(*direction),
+                    format_args!("{sender}  sent an Out-Of-Band message: {byte}"),
+                )?;
+            }
         }
 
         Ok(())

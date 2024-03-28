@@ -30,6 +30,7 @@ LISTEN_ADDR and FORWARD_ADDR:
     /path/to/unixsock, for example, /tmp/.s.monetdb.50000
 
 Options:
+    -o, --output=FILE    Write output to this file
     -m, --messages       Dump whole messages
     -b, --blocks         Dump individual blocks
     -r, --raw            Dump bytes as they come in

@@ -1,5 +1,6 @@
 use std::{
     io::{self, ErrorKind, Read, Write},
+    mem::MaybeUninit,
     ops::ControlFlow::{self, Break, Continue},
     vec,
 };
@@ -301,6 +302,7 @@ pub struct Copying {
     can_read: bool,
     can_write: bool,
     buffer: Box<[u8; Self::BUFSIZE]>,
+    oob: Option<u8>,
     unsent_data: usize,
     free_space: usize,
     fix_unix_read: bool,
@@ -322,6 +324,7 @@ impl Copying {
             can_read: true,
             can_write: true,
             buffer,
+            oob: None,
             unsent_data: 0,
             free_space,
             fix_unix_read,
@@ -353,6 +356,10 @@ impl Copying {
                 ));
             }
         }
+
+        progress |= self
+            .handle_oob(direction, sink, rd, wr)
+            .map_err(Error::Oob)?;
 
         let to_write = &self.buffer[self.unsent_data..self.free_space];
         if !to_write.is_empty() {
@@ -433,6 +440,63 @@ impl Copying {
 
     fn finished(&self) -> bool {
         !self.can_read && !self.can_write
+    }
+
+    fn handle_oob(
+        &mut self,
+        direction: Direction,
+        sink: &mut ConnectionSink,
+        rd: &mut Registered<MioStream>,
+        wr: &mut Registered<MioStream>,
+    ) -> io::Result<bool> {
+        let mut progress = false;
+
+        // only try to receive OOB if we don't already have an OOB we're trying to send
+        if self.oob.is_none() {
+            if let Some(msg) = rd.attempt(Interest::PRIORITY, Self::recv_oob)? {
+                progress = true;
+                self.oob = Some(msg);
+                sink.emit_oob_received(direction, msg);
+            }
+        };
+
+        if let Some(msg) = &self.oob {
+            let wrote = wr.attempt(Interest::WRITABLE, |w| Self::send_oob(w, *msg))?;
+            if wrote > 0 {
+                progress = true;
+                self.oob = None;
+            }
+        }
+
+        Ok(progress)
+    }
+
+    fn recv_oob(r: &mut MioStream) -> io::Result<Option<u8>> {
+        r.with_socket2(|sock2| {
+            let mut buf = [MaybeUninit::uninit()];
+            let x = sock2.recv_out_of_band(&mut buf);
+            match x {
+                Ok(1) => {
+                    let message = unsafe { buf[0].assume_init() };
+                    Ok(Some(message))
+                }
+                Ok(0) => Ok(None),
+                Err(e) if would_block(&e) => Ok(None),
+                Err(e) if e.kind() == ErrorKind::InvalidInput => Ok(None),
+                Err(e) => Err(e),
+                Ok(n) => unreachable!("oob read 1 byte returned {n}"),
+            }
+        })
+    }
+
+    fn send_oob(w: &mut MioStream, msg: u8) -> io::Result<usize> {
+        let ret = w.with_socket2(|sock2| sock2.send_out_of_band(&[msg]));
+        match ret.as_ref().map_err(|e| e.kind()) {
+            Ok(1) => Ok(1),
+            Ok(0) | Err(ErrorKind::WouldBlock | ErrorKind::InvalidInput) => Ok(0),
+            Ok(n @ 2..) => unreachable!("oob write 1 byte returned {n}"),
+            Err(_) => ret,
+        }
     }
 }
 

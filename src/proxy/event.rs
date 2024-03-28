@@ -126,6 +126,9 @@ pub enum MapiEvent {
         error: io::Error,
         immediately: bool,
     },
+
+    /// Client or server has sent an OOB message.
+    Oob(ConnectionId, Direction, u8),
 }
 
 /// Struct [EventSink] knows what to do with new [MapiEvent]s and
@@ -245,5 +248,11 @@ impl<'a> ConnectionSink<'a> {
             direction,
             discard,
         });
+    }
+
+    /// Emit a [MapiEvent::Oob] event.
+    pub fn emit_oob_received(&mut self, direction: Direction, byte: u8) {
+        self.0
+            .emit_event(MapiEvent::Oob(self.id(), direction, byte))
     }
 }

@@ -5,6 +5,12 @@ What changed in mapiproxy, per version
 
 ## mapiproxy NEXTVERSION - YYYY-MM-DD
 
+- Add -o or --output= option to direct output to a file.
+
+- Support proxying [Out-Of-Band (OOB)][OOB] signals.
+
+[OOB]: https://en.wikipedia.org/wiki/Transmission_Control_Protocol#Out-of-band_data
+
 
 ## mapiproxy 0.6.1 - 2024-03-13
 

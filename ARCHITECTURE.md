@@ -7,9 +7,7 @@ In main.rs we take care of setting everything up.
 
 The `proxy` module takes care of all network IO. It's currently based on [mio],
 a nonblocking IO library, because that seemed to be the best way to support
-out-of-band messages. That requirement has gone away and mio could now probably
-be replaced with a simpler threaded implementation, but that hasn't happened
-yet.
+out-of-band messages in Rust.
 
 The proxy is not aware of the structure of the communication protocol, it just
 forwards bytes. There is one exception, when connecting to a Unix Domain socket,
