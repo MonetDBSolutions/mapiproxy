@@ -5,6 +5,8 @@ What changed in mapiproxy, per version
 
 ## mapiproxy NEXTVERSION - YYYY-MM-DD
 
+- Add -o --output option to direct output to a file.
+
 
 ## mapiproxy 0.6.1 - 2024-03-13
 

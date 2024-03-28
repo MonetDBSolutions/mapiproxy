@@ -17,9 +17,8 @@ pub struct Renderer {
 }
 
 impl Renderer {
-    pub fn new(colored: bool, out: impl io::Write + 'static + Send) -> Self {
-        let boxed: Box<dyn io::Write + 'static + Send> = Box::new(out);
-        let buffered = BufWriter::with_capacity(4 * 8192, boxed);
+    pub fn new(colored: bool, out: Box<dyn io::Write + 'static + Send>) -> Self {
+        let buffered = BufWriter::with_capacity(4 * 8192, out);
         Renderer {
             colored,
             out: buffered,

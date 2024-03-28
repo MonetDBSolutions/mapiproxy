@@ -46,6 +46,7 @@ fn main() -> ExitCode {
 fn mymain() -> AResult<()> {
     install_panic_hook();
 
+    let mut output_file: Option<PathBuf> = None;
     let mut pcap_file: Option<PathBuf> = None;
     let mut level = None;
     let mut force_binary = false;
@@ -54,6 +55,7 @@ fn mymain() -> AResult<()> {
     let mut args = ArgSplitter::from_env();
     while let Some(flag) = args.flag()? {
         match flag {
+            "-o" | "--output" => output_file = Some(args.param_os()?.into()),
             "--pcap" => pcap_file = Some(args.param_os()?.into()),
             "-m" | "--messages" => level = Some(Level::Messages),
             "-b" | "--blocks" => level = Some(Level::Blocks),
@@ -97,8 +99,18 @@ fn mymain() -> AResult<()> {
 
     args.no_more_stashed()?;
 
-    let out = io::stdout();
-    let colored = colored.unwrap_or_else(|| is_terminal::is_terminal(&out));
+    let colored_default;
+    let out: Box<dyn io::Write + Send + 'static> = if let Some(p) = output_file {
+        let f = File::create(&p)
+            .with_context(|| format!("could not open output file {}", p.display()))?;
+        colored_default = false;
+        Box::new(f)
+    } else {
+        let out = io::stdout();
+        colored_default = is_terminal::is_terminal(&out);
+        Box::new(out)
+    };
+    let colored = colored.unwrap_or(colored_default);
     let mut renderer = Renderer::new(colored, out);
 
     let mapi_state = mapi::State::new(level, force_binary);
