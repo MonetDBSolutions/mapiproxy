@@ -1,3 +1,5 @@
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
 [package]
 name = "mapiproxy"
 version = "0.6.2-alpha.1"
@@ -12,11 +14,11 @@ readme = "README.md"
 homepage = "https://github.com/MonetDBSolutions/mapiproxy"
 repository = "https://github.com/MonetDBSolutions/mapiproxy"
 
-
 edition = "2021"
 default-run = "mapiproxy"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[features]
+oob = []
 
 [dependencies]
 anyhow = "1.0.80"

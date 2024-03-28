@@ -128,6 +128,7 @@ pub enum MapiEvent {
     },
 
     /// Client or server has sent an OOB message.
+    #[allow(dead_code)]
     Oob(ConnectionId, Direction, u8),
 }
 
@@ -251,6 +252,7 @@ impl<'a> ConnectionSink<'a> {
     }
 
     /// Emit a [MapiEvent::Oob] event.
+    #[allow(dead_code)]
     pub fn emit_oob_received(&mut self, direction: Direction, byte: u8) {
         self.0
             .emit_event(MapiEvent::Oob(self.id(), direction, byte))

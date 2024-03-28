@@ -49,6 +49,7 @@ pub enum Error {
     },
 
     #[error("could not handle OOB message: {0}")]
+    #[allow(dead_code)]
     Oob(io::Error),
 
     #[error("{0}")]

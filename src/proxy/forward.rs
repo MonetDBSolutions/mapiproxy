@@ -10,6 +10,14 @@ use mio::{
     Interest, Registry, Token,
 };
 
+#[allow(dead_code)] // only used in tests
+const READABLE: Interest = Interest::READABLE;
+
+const WRITABLE: Interest = Interest::WRITABLE;
+
+#[cfg(feature = "oob")]
+const PRIORITY: Interest = Interest::PRIORITY;
+
 use super::{
     event::{ConnectionId, ConnectionSink, Direction},
     network::{Addr, MioStream, MonetAddr},
@@ -144,7 +152,7 @@ impl Connecting {
             let err = match addr.connect() {
                 Ok(stream) => {
                     let mut server = Registered::new(addr.to_string(), token, stream);
-                    server.need(Some(Interest::WRITABLE));
+                    server.need(Some(WRITABLE));
                     match server.update_registration(registry) {
                         Ok(()) => return Some(server),
                         Err(e) => e,
@@ -173,7 +181,7 @@ impl Connecting {
             mut addrs,
         } = self;
 
-        let established = server.attempt(Interest::WRITABLE, |conn| conn.established());
+        let established = server.attempt(WRITABLE, |conn| conn.established());
 
         // If it succeeded or if we're still waiting, handle that here.
         // Otherwise, we'll have to report the error and try another address
@@ -302,6 +310,7 @@ pub struct Copying {
     can_read: bool,
     can_write: bool,
     buffer: Box<[u8; Self::BUFSIZE]>,
+    #[allow(dead_code)]
     oob: Option<u8>,
     unsent_data: usize,
     free_space: usize,
@@ -357,9 +366,12 @@ impl Copying {
             }
         }
 
-        progress |= self
-            .handle_oob(direction, sink, rd, wr)
-            .map_err(Error::Oob)?;
+        #[cfg(feature = "oob")]
+        {
+            progress |= self
+                .handle_oob(direction, sink, rd, wr)
+                .map_err(Error::Oob)?;
+        }
 
         let to_write = &self.buffer[self.unsent_data..self.free_space];
         if !to_write.is_empty() {
@@ -442,6 +454,7 @@ impl Copying {
         !self.can_read && !self.can_write
     }
 
+    #[cfg(feature = "oob")]
     fn handle_oob(
         &mut self,
         direction: Direction,
@@ -453,7 +466,7 @@ impl Copying {
 
         // only try to receive OOB if we don't already have an OOB we're trying to send
         if self.oob.is_none() {
-            if let Some(msg) = rd.attempt(Interest::PRIORITY, Self::recv_oob)? {
+            if let Some(msg) = rd.attempt(PRIORITY, Self::recv_oob)? {
                 progress = true;
                 self.oob = Some(msg);
                 sink.emit_oob_received(direction, msg);
@@ -461,7 +474,7 @@ impl Copying {
         };
 
         if let Some(msg) = &self.oob {
-            let wrote = wr.attempt(Interest::WRITABLE, |w| Self::send_oob(w, *msg))?;
+            let wrote = wr.attempt(WRITABLE, |w| Self::send_oob(w, *msg))?;
             if wrote > 0 {
                 progress = true;
                 self.oob = None;
@@ -471,6 +484,7 @@ impl Copying {
         Ok(progress)
     }
 
+    #[allow(dead_code)]
     fn recv_oob(r: &mut MioStream) -> io::Result<Option<u8>> {
         r.with_socket2(|sock2| {
             let mut buf = [MaybeUninit::uninit()];
@@ -489,6 +503,7 @@ impl Copying {
         })
     }
 
+    #[allow(dead_code)]
     fn send_oob(w: &mut MioStream, msg: u8) -> io::Result<usize> {
         let ret = w.with_socket2(|sock2| sock2.send_out_of_band(&[msg]));
         match ret.as_ref().map_err(|e| e.kind()) {
@@ -582,9 +597,9 @@ fn combine_interests(left: Option<Interest>, right: Option<Interest>) -> Option<
 
 #[test]
 fn test_combine_interests() {
-    let r = Some(Interest::READABLE);
-    let w = Some(Interest::WRITABLE);
-    let rw = Some(Interest::READABLE | Interest::WRITABLE);
+    let r = Some(READABLE);
+    let w = Some(WRITABLE);
+    let rw = Some(READABLE | WRITABLE);
 
     assert_eq!(combine_interests(None, None), None);
     assert_eq!(combine_interests(r, None), r);
