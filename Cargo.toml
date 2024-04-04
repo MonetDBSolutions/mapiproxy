@@ -18,6 +18,8 @@ edition = "2021"
 default-run = "mapiproxy"
 
 [features]
+# Enables Out-Of-Band (Urgent) message handling.
+# build.rs automatically enables this on Linux.
 oob = []
 
 [dependencies]
