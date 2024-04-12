@@ -268,6 +268,7 @@ impl<'a> ConnectionSink<'a> {
 
 /// A timestamp represented as a [Duration] since the
 /// [UNIX_EPOCH][std::time::UNIX_EPOCH].
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Timestamp(pub Duration);
 
 impl From<SystemTime> for Timestamp {

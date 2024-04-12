@@ -31,10 +31,11 @@ impl State {
 
     pub fn handle(
         &mut self,
-        _timestamp: &Timestamp,
+        timestamp: &Timestamp,
         event: &MapiEvent,
         renderer: &mut Renderer,
     ) -> io::Result<()> {
+        renderer.set_timestamp(timestamp);
         match event {
             MapiEvent::BoundPort(port) => {
                 renderer.message(None, None, format_args!("LISTEN on port {port}"))?;

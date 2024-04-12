@@ -3,14 +3,16 @@ use std::{
     fmt::Display,
     io::{self, BufWriter, Write},
     mem,
-    time::{Duration, Instant},
+    time::Duration,
 };
 
-use crate::event::{ConnectionId, Direction};
+use chrono::{DateTime, Local};
+
+use crate::event::{ConnectionId, Direction, Timestamp};
 
 pub struct Renderer {
     colored: bool,
-    last_time: Option<Instant>,
+    timing: TrackTime,
     out: BufWriter<Box<dyn io::Write + 'static + Send>>,
     current_style: Style,
     at_start: Option<Style>, // if Some(s), we're at line start, style to be reset to s
@@ -24,24 +26,23 @@ impl Renderer {
             out: buffered,
             current_style: Style::Normal,
             at_start: Some(Style::Normal),
-            last_time: None,
+            timing: TrackTime::default(),
         }
     }
 
-    const THRESHOLD: Duration = Duration::from_millis(500);
-
-    fn before(&mut self) -> io::Result<()> {
-        if let Some(then) = self.last_time {
-            let duration = then.elapsed();
-            if duration >= Self::THRESHOLD {
-                writeln!(self.out)?;
-            }
+    fn show_elapsed_time(&mut self) -> io::Result<()> {
+        let print_sep = self.timing.activity();
+        if print_sep {
+            writeln!(self.out)?;
+        }
+        if let Some(announcement) = self.timing.announcement() {
+            let message = format!("TIME is {announcement}");
+            self.message_no_check_time(None, None, &message)?;
         }
         Ok(())
     }
-
-    fn after(&mut self) {
-        self.last_time = Some(Instant::now());
+    pub fn set_timestamp(&mut self, timestamp: &Timestamp) {
+        self.timing.set_time(timestamp);
     }
 
     pub fn message(
@@ -50,12 +51,20 @@ impl Renderer {
         direction: Option<Direction>,
         message: impl Display,
     ) -> io::Result<()> {
-        self.before()?;
+        self.show_elapsed_time()?;
+        self.message_no_check_time(id, direction, &message)
+    }
+
+    fn message_no_check_time(
+        &mut self,
+        id: Option<ConnectionId>,
+        direction: Option<Direction>,
+        message: &dyn Display,
+    ) -> Result<(), io::Error> {
         self.style(Style::Frame)?;
         writeln!(self.out, "‣{} {message}", IdStream::from((id, direction)))?;
         self.style(Style::Normal)?;
         self.out.flush()?;
-        self.after();
         Ok(())
     }
 
@@ -65,7 +74,7 @@ impl Renderer {
         direction: Direction,
         items: &[&dyn fmt::Display],
     ) -> io::Result<()> {
-        self.before()?;
+        self.show_elapsed_time()?;
         let old_style = self.style(Style::Frame)?;
         write!(self.out, "┌{}", IdStream::from((id, direction)))?;
         let mut sep = " ";
@@ -91,7 +100,6 @@ impl Renderer {
         writeln!(self.out)?;
         self.style(Style::Normal)?;
         self.out.flush()?;
-        self.after();
         Ok(())
     }
 
@@ -174,6 +182,64 @@ impl From<(Option<ConnectionId>, Option<Direction>)> for IdStream {
     fn from(value: (Option<ConnectionId>, Option<Direction>)) -> Self {
         let (id, dir) = value;
         IdStream(id, dir)
+    }
+}
+
+#[derive(Debug, Default)]
+struct TrackTime {
+    now: Option<Timestamp>,
+    last_activity: Option<Timestamp>,
+    last_announce: Option<Timestamp>,
+}
+
+impl TrackTime {
+    const SEPARATOR_THRESHOLD: Duration = Duration::from_millis(500);
+    const ANNOUNCEMENT_THRESHOLD: Duration = Duration::from_secs(60);
+
+    fn set_time(&mut self, now: &Timestamp) {
+        self.now = Some(now.clone())
+    }
+
+    fn now(&self) -> &Timestamp {
+        self.now.as_ref().unwrap()
+    }
+
+    /// There has been activity, return true if a separator line must be printed.
+    fn activity(&mut self) -> bool {
+        let now = self.now().clone();
+        let Some(prev) = self.last_activity.replace(now) else {
+            return false;
+        };
+        self.elapsed_since(&prev) >= Self::SEPARATOR_THRESHOLD
+    }
+
+    fn must_announce(&self) -> bool {
+        let Some(prev) = &self.last_announce else {
+            return true;
+        };
+        self.elapsed_since(prev) >= Self::ANNOUNCEMENT_THRESHOLD
+    }
+
+    fn announcement(&mut self) -> Option<String> {
+        if !self.must_announce() {
+            return None;
+        }
+        let now = self.now();
+        let epoch = chrono::DateTime::UNIX_EPOCH;
+        let utc_now = epoch + now.0;
+        let local: DateTime<Local> = DateTime::from(utc_now);
+        let formatted = local.to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
+        self.last_announce = Some(now.clone());
+        Some(formatted)
+    }
+
+    // Return the time elapsed since 'time' if known and positive, [Duration::MAX] otherwise.
+    fn elapsed_since(&self, time: &Timestamp) -> Duration {
+        let now = self.now();
+        if let Some(delta) = now.0.checked_sub(time.0) {
+            return delta;
+        }
+        Duration::MAX
     }
 }
 

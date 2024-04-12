@@ -25,6 +25,7 @@ oob = []
 [dependencies]
 anyhow = "1.0.80"
 argsplitter = "0.5.0"
+chrono = "0.4.37"
 ctrlc = "3.4.2"
 etherparse = "0.14.2"
 is-terminal = "0.4.12"
