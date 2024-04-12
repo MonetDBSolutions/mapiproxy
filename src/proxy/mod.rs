@@ -8,14 +8,16 @@ use std::{
 };
 
 use forward::Forwarder;
-use network::Addr;
 
 use mio::{event::Event, Events, Interest, Poll, Token};
 use slab::Slab;
 use thiserror::Error as ThisError;
 
-use crate::event::{ConnectionId, EventSink, MapiEvent};
-use network::{MioListener, MioStream, MonetAddr};
+use crate::{
+    addr::{Addr, MonetAddr},
+    event::{ConnectionId, EventSink, MapiEvent},
+};
+use network::{MioListener, MioStream};
 
 /// Errors that can occur in the [Proxy].
 ///
@@ -138,9 +140,8 @@ impl Proxy {
         let n = self.listeners.len();
         let token = Token(n);
 
-        let mut listener = addr
-            .listen()
-            .map_err(|e| Error::StartListening(addr.to_string(), e))?;
+        let mut listener =
+            MioListener::new(&addr).map_err(|e| Error::StartListening(addr.to_string(), e))?;
 
         self.poll
             .registry()

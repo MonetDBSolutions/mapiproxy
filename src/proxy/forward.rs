@@ -18,11 +18,11 @@ const WRITABLE: Interest = Interest::WRITABLE;
 #[cfg(feature = "oob")]
 const PRIORITY: Interest = Interest::PRIORITY;
 
-use super::{
-    network::{Addr, MioStream, MonetAddr},
-    would_block, Error, Result,
+use super::{network::MioStream, would_block, Error, Result};
+use crate::{
+    addr::{Addr, MonetAddr},
+    event::{ConnectionId, ConnectionSink, Direction},
 };
-use crate::event::{ConnectionId, ConnectionSink, Direction};
 
 pub struct Forwarder(Option<Forwarding>, ConnectionId);
 
@@ -149,7 +149,7 @@ impl Connecting {
     ) -> Option<Registered<MioStream>> {
         for addr in addrs {
             event_sink.emit_connecting(addr.clone());
-            let err = match addr.connect() {
+            let err = match MioStream::new(&addr) {
                 Ok(stream) => {
                     let mut server = Registered::new(addr.to_string(), token, stream);
                     server.need(Some(WRITABLE));

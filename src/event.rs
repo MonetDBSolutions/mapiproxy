@@ -2,7 +2,7 @@ use std::{error::Error, fmt, io};
 
 use smallvec::SmallVec;
 
-use super::proxy::network::Addr;
+use crate::addr::Addr;
 
 /// Connection id for display to the user.
 /// Displayed with a leading #, e.g., #10.

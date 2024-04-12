@@ -1,5 +1,6 @@
 #![doc = include_str!("../README.md")]
 
+mod addr;
 mod event;
 mod mapi;
 mod pcap;
@@ -12,11 +13,11 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::{io, panic, process, thread};
 
+use addr::MonetAddr;
 use anyhow::{bail, Context, Result as AResult};
 use argsplitter::{ArgError, ArgSplitter};
 use event::MapiEvent;
 use pcap::Tracker;
-use proxy::network::MonetAddr;
 
 use crate::{proxy::Proxy, render::Renderer};
 
