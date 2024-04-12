@@ -7,9 +7,9 @@ use std::{
 
 use etherparse::TcpSlice;
 
-use crate::event::{ConnectionId, Direction, MapiEvent};
+use crate::event::{ConnectionId, Direction, MapiEvent, Timestamp};
 
-type Handler<'a> = dyn FnMut(MapiEvent) -> io::Result<()> + 'a;
+type Handler<'a> = dyn for<'t> FnMut(&'t Timestamp, MapiEvent) -> io::Result<()> + 'a;
 
 /// TCP connection state is identified by (src_ip,src_port, dest_ip,dest_port) tuples.
 /// This struct represents those.
@@ -52,6 +52,7 @@ impl TcpTracker {
     /// Handle a TCP packet.
     pub fn handle(
         &mut self,
+        timestamp: &Timestamp,
         src_addr: IpAddr,
         dest_addr: IpAddr,
         tcp: &TcpSlice,
@@ -63,13 +64,19 @@ impl TcpTracker {
         };
 
         match (tcp.syn(), tcp.ack()) {
-            (true, false) => self.handle_syn(key, tcp, handler),
-            (true, true) => self.handle_syn_ack(key, tcp, handler),
-            _ => self.handle_existing(key, tcp, handler),
+            (true, false) => self.handle_syn(timestamp, key, tcp, handler),
+            (true, true) => self.handle_syn_ack(timestamp, key, tcp, handler),
+            _ => self.handle_existing(timestamp, key, tcp, handler),
         }
     }
 
-    fn handle_syn(&mut self, key: Key, tcp: &TcpSlice, handler: &mut Handler) -> io::Result<()> {
+    fn handle_syn(
+        &mut self,
+        timestamp: &Timestamp,
+        key: Key,
+        tcp: &TcpSlice,
+        handler: &mut Handler,
+    ) -> io::Result<()> {
         let flipped = key.flip();
         if self.streams.contains_key(&key) || self.streams.contains_key(&flipped) {
             return Ok(());
@@ -85,7 +92,7 @@ impl TcpTracker {
             local: key.dest.into(),
             peer: key.src.into(),
         };
-        handler(ev)?;
+        handler(timestamp, ev)?;
 
         self.streams.insert(key, upstream);
         Ok(())
@@ -93,6 +100,7 @@ impl TcpTracker {
 
     fn handle_syn_ack(
         &mut self,
+        timestamp: &Timestamp,
         key: Key,
         tcp: &TcpSlice,
         handler: &mut Handler,
@@ -111,7 +119,7 @@ impl TcpTracker {
             id,
             peer: key.src.into(),
         };
-        handler(ev)?;
+        handler(timestamp, ev)?;
 
         self.streams.insert(key, downstream);
         Ok(())
@@ -119,6 +127,7 @@ impl TcpTracker {
 
     fn handle_existing(
         &mut self,
+        timestamp: &Timestamp,
         key: Key,
         tcp: &TcpSlice,
         handler: &mut Handler,
@@ -139,13 +148,13 @@ impl TcpTracker {
         let Some(payload) = stream.reorder(seqno, tcp.fin(), payload) else {
             return Ok(());
         };
-        Self::emit_data(id, direction, payload, handler)?;
+        Self::emit_data(timestamp, id, direction, payload, handler)?;
 
         // If stream.reorder above returned this packet, it means it was exactly
         // the packet we needed right now. Packets do not always arrive in-order
         // so it's possible that the next packet is already in our cache.
         while let Some(payload) = stream.next_ready() {
-            Self::emit_data(id, direction, &payload, handler)?;
+            Self::emit_data(timestamp, id, direction, &payload, handler)?;
         }
 
         // Stream.finished is set by stream.reorder and stream.next_ready.
@@ -157,20 +166,21 @@ impl TcpTracker {
         // Report this and drop all state if the other direction has also finished.
 
         let ev = MapiEvent::ShutdownRead { id, direction };
-        handler(ev)?;
+        handler(timestamp, ev)?;
 
         let flipped = key.flip();
         if let Some(StreamState { finished: true, .. }) = self.streams.get(&flipped) {
             self.streams.remove(&key);
             self.streams.remove(&flipped);
             let ev = MapiEvent::End { id };
-            handler(ev)?;
+            handler(timestamp, ev)?;
         }
 
         Ok(())
     }
 
     fn emit_data(
+        timestamp: &Timestamp,
         id: ConnectionId,
         direction: Direction,
         payload: &[u8],
@@ -182,7 +192,7 @@ impl TcpTracker {
                 direction,
                 data: payload.into(),
             };
-            handler(ev)?;
+            handler(timestamp, ev)?;
         }
         Ok(())
     }

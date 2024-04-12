@@ -2,21 +2,28 @@ mod mybufread;
 mod tcp;
 mod tracker;
 
-use std::io;
+use std::{
+    io,
+    time::{Duration, SystemTime},
+};
 
 use anyhow::{bail, Result as AResult};
 
 use pcap_file::{
     pcap::PcapReader,
-    pcapng::{Block, PcapNgReader},
+    pcapng::{blocks::interface_description::InterfaceDescriptionOption, Block, PcapNgReader},
     DataLink,
 };
+
+use crate::event::Timestamp;
 
 use self::mybufread::MyBufReader;
 pub use self::tracker::Tracker;
 
 /// Parse PCAP records from the reader and hand the packets to the Tracker. This
 /// function works with both the old-style PCAP and with PCAP-NG file formats.
+///
+/// See also https://www.ietf.org/archive/id/draft-tuexen-opsawg-pcapng-04.html
 pub fn parse_pcap_file(mut rd: impl io::Read, tracker: &mut Tracker) -> AResult<()> {
     // read ahead to inspect the file header
     let mut signature = [0u8; 4];
@@ -52,11 +59,12 @@ fn parse_legacy_pcap(rd: MyBufReader, tracker: &mut Tracker) -> AResult<()> {
 
     while let Some(pkt) = pcap_reader.next_packet() {
         let pkt = pkt?;
+        let timestamp = Timestamp(pkt.timestamp);
         if pkt.data.len() == header.snaplen as usize {
             bail!("truncated packet");
         }
 
-        process_packet(header.datalink, &pkt.data, tracker)?;
+        process_packet(&timestamp, header.datalink, &pkt.data, tracker)?;
     }
 
     Ok(())
@@ -71,22 +79,51 @@ fn parse_pcap_ng(rd: MyBufReader, tracker: &mut Tracker) -> AResult<()> {
     // This mutable holds the latest value we have seen.
     let mut linktype = None;
 
+    // Only used for legacy Block::Packet, completely untested
+    let mut timestamp_resolution = Duration::from_micros(1);
+
+    let mut timestamp: Timestamp = SystemTime::now().into();
     while let Some(block) = pcapng_reader.next_block() {
         let data = match block? {
             Block::InterfaceDescription(iface) => {
                 linktype = Some(iface.linktype);
+                for opt in iface.options {
+                    // This is all completely untested
+                    if let InterfaceDescriptionOption::IfTsResol(reso) = opt {
+                        let base = if reso & 0x80 == 0 { 10u32 } else { 2 };
+                        let divisor = base.pow(reso as u32 & 0x7F);
+                        timestamp_resolution = Duration::from_secs(1) / divisor;
+                    }
+                }
                 continue;
             }
-            Block::Packet(packet) => packet.data,
-            Block::SimplePacket(packet) => packet.data,
-            Block::EnhancedPacket(packet) => packet.data,
+            Block::Packet(packet) => {
+                // This is all completely untested
+                let units = packet.timestamp;
+                // Duration can be multiplied by u32, not by u64.
+                let units_lo = (units & 0xFFFF_FFFF) as u32;
+                let units_hi = (units >> 32) as u32;
+                let duration_lo = timestamp_resolution * units_lo;
+                let duration_hi = timestamp_resolution * units_hi;
+                let duration = duration_hi * 0x1_0000 * 0x1_0000 + duration_lo;
+                timestamp = Timestamp(duration);
+                packet.data
+            }
+            Block::SimplePacket(packet) => {
+                // has no timestamp, keep existing
+                packet.data
+            }
+            Block::EnhancedPacket(packet) => {
+                timestamp = Timestamp(packet.timestamp);
+                packet.data
+            }
             _ => continue,
         };
 
         // Broken files might contain packets before the first interface description block.
         // Ignore them.
         if let Some(lt) = linktype {
-            process_packet(lt, &data, tracker)?;
+            process_packet(&timestamp, lt, &data, tracker)?;
         }
     }
 
@@ -95,11 +132,16 @@ fn parse_pcap_ng(rd: MyBufReader, tracker: &mut Tracker) -> AResult<()> {
 
 /// This function is called from both [parse_legacy_pcap] and [parse_pcap_ng]
 /// for each packet in the file.
-fn process_packet(linktype: DataLink, data: &[u8], tracker: &mut Tracker) -> AResult<()> {
+fn process_packet(
+    timestamp: &Timestamp,
+    linktype: DataLink,
+    data: &[u8],
+    tracker: &mut Tracker,
+) -> AResult<()> {
     // We expect to read ethernet frames but it's also possible for pcap files to
     // capture at the IP level. Right now we only support Ethernet.
     match linktype {
-        DataLink::ETHERNET => tracker.process_ethernet(data),
+        DataLink::ETHERNET => tracker.process_ethernet(timestamp, data),
         _ => bail!("pcap file contains packet of type {linktype:?}, this is not supported"),
     }
 }

@@ -11,12 +11,13 @@ use std::fs::File;
 use std::panic::PanicInfo;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
+use std::time::SystemTime;
 use std::{io, panic, process, thread};
 
 use addr::MonetAddr;
 use anyhow::{bail, Context, Result as AResult};
 use argsplitter::{ArgError, ArgSplitter};
-use event::MapiEvent;
+use event::{MapiEvent, Timestamp};
 use pcap::Tracker;
 
 use crate::{proxy::Proxy, render::Renderer};
@@ -134,14 +135,15 @@ fn run_proxy(
 ) -> AResult<()> {
     let (send_events, receive_events) = std::sync::mpsc::sync_channel(500);
     let handler = move |event| {
-        let _ = send_events.send(event);
+        let timestamp = SystemTime::now().into();
+        let _ = send_events.send((timestamp, event));
     };
     let mut proxy = Proxy::new(listen_addr, forward_addr, handler)?;
     install_ctrl_c_handler(proxy.get_shutdown_trigger())?;
     thread::spawn(move || proxy.run().unwrap());
 
-    while let Ok(ev) = receive_events.recv() {
-        mapi_state.handle(&ev, renderer)?;
+    while let Ok((ts, ev)) = receive_events.recv() {
+        mapi_state.handle(&ts, &ev, renderer)?;
     }
     Ok(())
 }
@@ -160,7 +162,7 @@ fn run_pcap(path: &Path, mut mapi_state: mapi::State, renderer: &mut Renderer) -
         owned_file.as_mut().unwrap()
     };
 
-    let handler = |ev: MapiEvent| mapi_state.handle(&ev, renderer);
+    let handler = |ts: &Timestamp, ev: MapiEvent| mapi_state.handle(ts, &ev, renderer);
     let mut tracker = Tracker::new(handler);
     pcap::parse_pcap_file(reader, &mut tracker)
 }

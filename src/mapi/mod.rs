@@ -6,7 +6,7 @@ use std::{
 };
 
 use crate::{
-    event::{ConnectionId, Direction, MapiEvent},
+    event::{ConnectionId, Direction, MapiEvent, Timestamp},
     render::{Renderer, Style},
     Level,
 };
@@ -29,7 +29,12 @@ impl State {
         }
     }
 
-    pub fn handle(&mut self, event: &MapiEvent, renderer: &mut Renderer) -> io::Result<()> {
+    pub fn handle(
+        &mut self,
+        _timestamp: &Timestamp,
+        event: &MapiEvent,
+        renderer: &mut Renderer,
+    ) -> io::Result<()> {
         match event {
             MapiEvent::BoundPort(port) => {
                 renderer.message(None, None, format_args!("LISTEN on port {port}"))?;

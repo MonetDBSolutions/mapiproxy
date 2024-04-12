@@ -1,4 +1,8 @@
-use std::{error::Error, fmt, io};
+use std::{
+    error::Error,
+    fmt, io,
+    time::{Duration, SystemTime, UNIX_EPOCH},
+};
 
 use smallvec::SmallVec;
 
@@ -259,5 +263,16 @@ impl<'a> ConnectionSink<'a> {
     pub fn emit_oob_received(&mut self, direction: Direction, byte: u8) {
         self.0
             .emit_event(MapiEvent::Oob(self.id(), direction, byte))
+    }
+}
+
+/// A timestamp represented as a [Duration] since the
+/// [UNIX_EPOCH][std::time::UNIX_EPOCH].
+pub struct Timestamp(pub Duration);
+
+impl From<SystemTime> for Timestamp {
+    fn from(t: SystemTime) -> Self {
+        let duration = t.duration_since(UNIX_EPOCH).unwrap();
+        Timestamp(duration)
     }
 }
