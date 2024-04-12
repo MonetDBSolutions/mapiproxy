@@ -39,9 +39,13 @@ impl<'a> Tracker<'a> {
             bail!("pcap file contains fragmented ipv6 packet, not supported");
         }
 
-        let Some(IpNumber::TCP) = ipv6.extensions().first_header() else { return Ok(()); };
+        let Some(IpNumber::TCP) = ipv6.extensions().first_header() else {
+            return Ok(());
+        };
         let payload = ipv6.payload().payload;
-        let Ok(tcp) = TcpSlice::from_slice(payload) else { return Ok(()); };
+        let Ok(tcp) = TcpSlice::from_slice(payload) else {
+            return Ok(());
+        };
 
         let header = &ipv6.header();
         let src = IpAddr::from(header.source_addr());
@@ -55,9 +59,13 @@ impl<'a> Tracker<'a> {
             bail!("pcap file contains fragmented ipv4 packet, not supported");
         }
 
-        let IpNumber::TCP = ipv4.payload_ip_number() else { return Ok(()) };
+        let IpNumber::TCP = ipv4.payload_ip_number() else {
+            return Ok(());
+        };
         let payload = ipv4.payload().payload;
-        let Ok(tcp) = TcpSlice::from_slice(payload) else { return Ok(()); };
+        let Ok(tcp) = TcpSlice::from_slice(payload) else {
+            return Ok(());
+        };
 
         let header = &ipv4.header();
         let src = IpAddr::from(header.source_addr());

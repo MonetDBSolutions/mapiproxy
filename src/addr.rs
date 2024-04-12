@@ -15,11 +15,18 @@ use mio::net::SocketAddr as UnixSocketAddr;
 
 use lazy_regex::{regex_captures, regex_is_match};
 
+/// A user can pass a listen- or connect address as a host/port combination, a
+/// path or a lone port number.
 #[derive(Debug, PartialEq, Eq, Clone, Hash)]
 pub enum MonetAddr {
+    /// A host name that must still be resolved to IP addresses, plus a port
     Dns { host: String, port: u16 },
+    /// A specific IP address, plus a port
     Ip { ip: IpAddr, port: u16 },
+    /// The path of a Unix Domain socket in the file system
     Unix(PathBuf),
+    /// Only a port, may resolve to a combination of ip/port pairs and a Unix
+    /// Domain socket.
     PortOnly(u16),
 }
 
@@ -46,6 +53,8 @@ impl TryFrom<&OsStr> for MonetAddr {
     type Error = io::Error;
 
     fn try_from(os_value: &OsStr) -> Result<Self, io::Error> {
+        // this nested function does all the work but it returns Option rather
+        // than Result.
         fn parse(os_value: &OsStr) -> Option<MonetAddr> {
             // If it contains slashes or backslashes, it must be a path
             let bytes = os_value.as_encoded_bytes();
@@ -89,6 +98,7 @@ impl TryFrom<&OsStr> for MonetAddr {
             }
         }
 
+        // now apply the nested function and handle errors
         if let Some(monetaddr) = parse(os_value) {
             Ok(monetaddr)
         } else {
@@ -109,13 +119,20 @@ impl TryFrom<OsString> for MonetAddr {
 }
 
 impl MonetAddr {
+    /// Resolve the user-specified address into a Vec of concrete addresses.
+    ///
+    /// For example, a lone port number might resolve to a Unix Domain socket
+    /// and a number of ip/port pairs.
     pub fn resolve(&self) -> io::Result<Vec<Addr>> {
-        let mut addrs = self.resolve_unix()?;
-        let tcp_addrs = self.resolve_tcp()?;
-        addrs.extend(tcp_addrs);
+        let mut addrs = self.resolve_tcp()?;
+        if let Some(unix_addr) = self.resolve_unix()? {
+            // Prepend
+            addrs.insert(0, unix_addr);
+        }
         Ok(addrs)
     }
 
+    /// Resolve the user-specified address into TCP-based [`Addr`]'s
     pub fn resolve_tcp(&self) -> io::Result<Vec<Addr>> {
         fn gather<T: ToSocketAddrs>(a: T) -> io::Result<Vec<Addr>> {
             Ok(a.to_socket_addrs()?.map(Addr::Tcp).collect())
@@ -129,20 +146,23 @@ impl MonetAddr {
         }
     }
 
-    pub fn resolve_unix(&self) -> io::Result<Vec<Addr>> {
+    /// Resolve the user-specified address into a Unix Domain TCP-based [`Addr`]
+    pub fn resolve_unix(&self) -> io::Result<Option<Addr>> {
         if cfg!(unix) {
             let path = match self {
-                MonetAddr::Dns { .. } | MonetAddr::Ip { .. } => return Ok(vec![]),
+                MonetAddr::Dns { .. } | MonetAddr::Ip { .. } => return Ok(None),
                 MonetAddr::Unix(p) => p.clone(),
                 MonetAddr::PortOnly(port) => PathBuf::from(format!("/tmp/.s.monetdb.{port}")),
             };
-            Ok(vec![Addr::Unix(path)])
+            Ok(Some(Addr::Unix(path)))
         } else {
-            Ok(vec![])
+            Ok(None)
         }
     }
 }
 
+/// A generalization of [std::net::SocketAddr] that also allows Unix Domain
+/// sockets.
 #[derive(Debug, Clone)]
 pub enum Addr {
     Tcp(TcpSocketAddr),

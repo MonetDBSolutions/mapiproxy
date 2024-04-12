@@ -88,7 +88,10 @@ pub enum MapiEvent {
 
     /// Something went wrong in Mapiproxy (not in the client or the server), no
     /// more events on this [ConnectionId] will be reported.
-    Aborted { id: ConnectionId, error: Box<dyn Error + Send + Sync + 'static> },
+    Aborted {
+        id: ConnectionId,
+        error: Box<dyn Error + Send + Sync + 'static>,
+    },
 
     /// Data has been observed flowing from client to server
     /// ([Direction::Upstream]) or from server to client
@@ -135,7 +138,7 @@ pub enum MapiEvent {
 /// Struct [EventSink] knows what to do with new [MapiEvent]s and
 /// provides helper functions to generate such events.
 ///
-/// Method [connection_sink] returns a derived struct that also holds
+/// Method [connection_sink][EventSink::connection_sink] returns a derived struct that also holds
 /// a connection id and is used to emit events specific to a single
 /// connection.
 pub struct EventSink(Box<dyn FnMut(MapiEvent) + 'static + Send>);
