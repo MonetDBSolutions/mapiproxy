@@ -1,4 +1,3 @@
-pub mod event;
 mod forward;
 pub mod network;
 
@@ -15,10 +14,8 @@ use mio::{event::Event, Events, Interest, Poll, Token};
 use slab::Slab;
 use thiserror::Error as ThisError;
 
-use self::{
-    event::{ConnectionId, EventSink, MapiEvent},
-    network::{MioListener, MioStream, MonetAddr},
-};
+use crate::event::{ConnectionId, EventSink, MapiEvent};
+use network::{MioListener, MioStream, MonetAddr};
 
 /// Errors that can occur in the [Proxy].
 ///

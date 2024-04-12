@@ -6,7 +6,7 @@ use std::{
 };
 
 use crate::{
-    proxy::event::{ConnectionId, Direction, MapiEvent},
+    event::{ConnectionId, Direction, MapiEvent},
     render::{Renderer, Style},
     Level,
 };

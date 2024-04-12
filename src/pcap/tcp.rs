@@ -7,7 +7,7 @@ use std::{
 
 use etherparse::TcpSlice;
 
-use crate::proxy::event::{ConnectionId, Direction, MapiEvent};
+use crate::event::{ConnectionId, Direction, MapiEvent};
 
 type Handler<'a> = dyn FnMut(MapiEvent) -> io::Result<()> + 'a;
 

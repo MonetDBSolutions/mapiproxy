@@ -1,5 +1,6 @@
 #![doc = include_str!("../README.md")]
 
+mod event;
 mod mapi;
 mod pcap;
 mod proxy;
@@ -13,8 +14,8 @@ use std::{io, panic, process, thread};
 
 use anyhow::{bail, Context, Result as AResult};
 use argsplitter::{ArgError, ArgSplitter};
+use event::MapiEvent;
 use pcap::Tracker;
-use proxy::event::MapiEvent;
 use proxy::network::MonetAddr;
 
 use crate::{proxy::Proxy, render::Renderer};

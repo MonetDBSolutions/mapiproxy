@@ -3,7 +3,7 @@ use std::{io, net::IpAddr};
 use anyhow::{bail, Result as AResult};
 use etherparse::{InternetSlice, IpNumber, Ipv4Slice, Ipv6Slice, SlicedPacket, TcpSlice};
 
-use crate::proxy::event::MapiEvent;
+use crate::event::MapiEvent;
 
 use super::tcp::TcpTracker;
 

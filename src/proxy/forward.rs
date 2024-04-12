@@ -19,10 +19,10 @@ const WRITABLE: Interest = Interest::WRITABLE;
 const PRIORITY: Interest = Interest::PRIORITY;
 
 use super::{
-    event::{ConnectionId, ConnectionSink, Direction},
     network::{Addr, MioStream, MonetAddr},
     would_block, Error, Result,
 };
+use crate::event::{ConnectionId, ConnectionSink, Direction};
 
 pub struct Forwarder(Option<Forwarding>, ConnectionId);
 

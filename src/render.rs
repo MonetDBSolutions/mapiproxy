@@ -6,7 +6,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use crate::proxy::event::{ConnectionId, Direction};
+use crate::event::{ConnectionId, Direction};
 
 pub struct Renderer {
     colored: bool,

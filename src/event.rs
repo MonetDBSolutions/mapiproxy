@@ -1,8 +1,8 @@
-use std::{fmt, io};
+use std::{error::Error, fmt, io};
 
 use smallvec::SmallVec;
 
-use super::{network::Addr, Error};
+use super::proxy::network::Addr;
 
 /// Connection id for display to the user.
 /// Displayed with a leading #, e.g., #10.
@@ -88,7 +88,7 @@ pub enum MapiEvent {
 
     /// Something went wrong in Mapiproxy (not in the client or the server), no
     /// more events on this [ConnectionId] will be reported.
-    Aborted { id: ConnectionId, error: Error },
+    Aborted { id: ConnectionId, error: Box<dyn Error + Send + Sync + 'static> },
 
     /// Data has been observed flowing from client to server
     /// ([Direction::Upstream]) or from server to client
@@ -218,10 +218,10 @@ impl<'a> ConnectionSink<'a> {
     }
 
     /// Emit a [MapiEvent::Aborted] event.
-    pub fn emit_aborted(&mut self, error: Error) {
+    pub fn emit_aborted(&mut self, error: impl Error + Send + Sync + 'static) {
         self.0.emit_event(MapiEvent::Aborted {
             id: self.id(),
-            error,
+            error: Box::new(error),
         });
     }
 
