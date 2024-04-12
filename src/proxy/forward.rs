@@ -1,6 +1,5 @@
 use std::{
     io::{self, ErrorKind, Read, Write},
-    mem::MaybeUninit,
     ops::ControlFlow::{self, Break, Continue},
     vec,
 };
@@ -484,10 +483,11 @@ impl Copying {
         Ok(progress)
     }
 
+    #[cfg(feature = "oob")]
     #[allow(dead_code)]
     fn recv_oob(r: &mut MioStream) -> io::Result<Option<u8>> {
         r.with_socket2(|sock2| {
-            let mut buf = [MaybeUninit::uninit()];
+            let mut buf = [std::mem::MaybeUninit::uninit()];
             let x = sock2.recv_out_of_band(&mut buf);
             match x {
                 Ok(1) => {
@@ -504,6 +504,7 @@ impl Copying {
     }
 
     #[allow(dead_code)]
+    #[cfg(feature = "oob")]
     fn send_oob(w: &mut MioStream, msg: u8) -> io::Result<usize> {
         let ret = w.with_socket2(|sock2| sock2.send_out_of_band(&[msg]));
         match ret.as_ref().map_err(|e| e.kind()) {

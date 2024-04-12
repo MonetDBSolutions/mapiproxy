@@ -1,6 +1,4 @@
 use std::io::{self, ErrorKind};
-use std::mem::ManuallyDrop;
-use std::os::fd::{AsRawFd, FromRawFd};
 use std::{fs, net};
 
 use mio::net::{TcpListener, TcpStream};
@@ -242,10 +240,13 @@ impl MioStream {
         }
     }
 
+    #[cfg(feature = "oob")]
     pub fn with_socket2<T, F>(&mut self, f: F) -> io::Result<T>
     where
         F: FnOnce(&mut socket2::Socket) -> io::Result<T>,
     {
+        use  std::os::fd::{AsRawFd, FromRawFd};
+
         let fd = match self {
             MioStream::Tcp(sock) => sock.as_raw_fd(),
             MioStream::Unix(sock) => sock.as_raw_fd(),
@@ -254,7 +255,7 @@ impl MioStream {
             // SAFETY: it's clear from above that fd is always a socket.
             socket2::Socket::from_raw_fd(fd)
         };
-        let mut dont_drop = ManuallyDrop::new(sock2);
+        let mut dont_drop = std::mem::ManuallyDrop::new(sock2);
         f(&mut dont_drop)
     }
 }
