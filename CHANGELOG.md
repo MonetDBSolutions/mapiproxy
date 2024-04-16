@@ -7,7 +7,9 @@ What changed in mapiproxy, per version
 
 - Add -o or --output= option to direct output to a file.
 
-- Support proxying [Out-Of-Band (OOB)][OOB] signals.
+- Print timestamp marker before the first message of each minute.
+
+- Support proxying [Out-Of-Band (OOB)][OOB] signals (Linux only).
 
 [OOB]: https://en.wikipedia.org/wiki/Transmission_Control_Protocol#Out-of-band_data
 

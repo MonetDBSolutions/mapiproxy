@@ -26,7 +26,7 @@ impl Renderer {
             out: buffered,
             current_style: Style::Normal,
             at_start: Some(Style::Normal),
-            timing: TrackTime::default(),
+            timing: TrackTime::new(),
         }
     }
 
@@ -38,6 +38,7 @@ impl Renderer {
         if let Some(announcement) = self.timing.announcement() {
             let message = format!("TIME is {announcement}");
             self.message_no_check_time(None, None, &message)?;
+            writeln!(self.out)?;
         }
         Ok(())
     }
@@ -185,16 +186,24 @@ impl From<(Option<ConnectionId>, Option<Direction>)> for IdStream {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 struct TrackTime {
     now: Option<Timestamp>,
     last_activity: Option<Timestamp>,
-    last_announce: Option<Timestamp>,
+    next_announcement: Timestamp,
 }
 
 impl TrackTime {
     const SEPARATOR_THRESHOLD: Duration = Duration::from_millis(500);
     const ANNOUNCEMENT_THRESHOLD: Duration = Duration::from_secs(60);
+
+    fn new() -> Self {
+        TrackTime {
+            now: None,
+            last_activity: None,
+            next_announcement: Timestamp(Duration::ZERO),
+        }
+    }
 
     fn set_time(&mut self, now: &Timestamp) {
         self.now = Some(now.clone())
@@ -213,23 +222,27 @@ impl TrackTime {
         self.elapsed_since(&prev) >= Self::SEPARATOR_THRESHOLD
     }
 
-    fn must_announce(&self) -> bool {
-        let Some(prev) = &self.last_announce else {
-            return true;
-        };
-        self.elapsed_since(prev) >= Self::ANNOUNCEMENT_THRESHOLD
-    }
-
     fn announcement(&mut self) -> Option<String> {
-        if !self.must_announce() {
+        if self.now() < &self.next_announcement {
             return None;
         }
+
+        // decide the next time
+        let units = self.now().0.as_secs_f64() / Self::ANNOUNCEMENT_THRESHOLD.as_secs_f64();
+        let mut ceil = units.ceil();
+        // we need strictly greater, not greater or equal
+        if ceil == units {
+            ceil += 1.0;
+        }
+        let ceil_seconds = ceil * Self::ANNOUNCEMENT_THRESHOLD.as_secs_f64();
+        self.next_announcement = Timestamp(Duration::from_secs_f64(ceil_seconds));
+
+        // format the timestamp
         let now = self.now();
         let epoch = chrono::DateTime::UNIX_EPOCH;
         let utc_now = epoch + now.0;
-        let local: DateTime<Local> = DateTime::from(utc_now);
-        let formatted = local.to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
-        self.last_announce = Some(now.clone());
+        let local_now: DateTime<Local> = DateTime::from(utc_now);
+        let formatted = local_now.format("%Y-%m-%d %H:%M:%S%.3f").to_string();
         Some(formatted)
     }
 
