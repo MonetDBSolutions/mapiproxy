@@ -245,7 +245,7 @@ impl MioStream {
     where
         F: FnOnce(&mut socket2::Socket) -> io::Result<T>,
     {
-        use  std::os::fd::{AsRawFd, FromRawFd};
+        use std::os::fd::{AsRawFd, FromRawFd};
 
         let fd = match self {
             MioStream::Tcp(sock) => sock.as_raw_fd(),

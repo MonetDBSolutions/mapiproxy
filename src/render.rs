@@ -42,6 +42,7 @@ impl Renderer {
         }
         Ok(())
     }
+
     pub fn set_timestamp(&mut self, timestamp: &Timestamp) {
         self.timing.set_time(timestamp);
     }
