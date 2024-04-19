@@ -354,6 +354,7 @@ impl Accumulator {
     }
 
     fn dump_frame_as_text(&self, data: &[u8], renderer: &mut Renderer) -> io::Result<()> {
+        renderer.style(Style::Normal);
         for byte in data {
             match *byte {
                 b'\n' => {
@@ -366,7 +367,9 @@ impl Accumulator {
                 b => renderer.put([b])?,
             }
         }
-        renderer.clear_line()?;
+        if !renderer.at_start() {
+            renderer.nl()?;
+        }
         Ok(())
     }
 
@@ -425,14 +428,14 @@ impl Binary {
         const HEX_DIGITS: [u8; 16] = *b"0123456789abcdef";
         let mut cur_head = false;
         for (i, (byte, style)) in self.row[..self.col].iter().cloned().enumerate() {
+            renderer.style(Style::Normal);
             self.put_sep(i, &mut cur_head, style, renderer)?;
 
             let hi = HEX_DIGITS[byte as usize / 16];
             let lo = HEX_DIGITS[byte as usize & 0xF];
 
-            renderer.style(style)?;
+            renderer.style(style);
             renderer.put([hi, lo])?;
-            renderer.style(Style::Normal)?;
         }
 
         for i in self.col..16 {
@@ -445,7 +448,7 @@ impl Binary {
         self.put_sep(16, &mut cur_head, Style::Normal, renderer)?;
 
         for (byte, style) in &self.row[..self.col] {
-            renderer.style(*style)?;
+            renderer.style(*style);
             renderer.put(Self::readable(&[*byte]))?;
         }
 
@@ -477,14 +480,14 @@ impl Binary {
         match (*in_head, is_head) {
             (false, true) => {
                 renderer.put(&spaces[..extra])?;
-                let old_style = renderer.style(Style::Header)?;
+                let old_style = renderer.style(Style::Header);
                 renderer.put(open)?;
-                renderer.style(old_style)?;
+                renderer.style(old_style);
             }
             (true, false) => {
-                let old_style = renderer.style(Style::Header)?;
+                let old_style = renderer.style(Style::Header);
                 renderer.put(close)?;
-                renderer.style(old_style)?;
+                renderer.style(old_style);
                 renderer.put(&spaces[..extra])?;
             }
             _ => renderer.put(&spaces[..extra + 1])?,
