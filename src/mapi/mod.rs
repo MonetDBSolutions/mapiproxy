@@ -35,27 +35,23 @@ impl State {
         event: &MapiEvent,
         renderer: &mut Renderer,
     ) -> io::Result<()> {
-        renderer.set_timestamp(timestamp);
+        renderer.timestamp(timestamp);
         match event {
             MapiEvent::BoundPort(port) => {
-                renderer.message(None, None, format_args!("LISTEN on port {port}"))?;
+                renderer.message((None, None), format_args!("LISTEN on port {port}"))?;
             }
 
             MapiEvent::Incoming { id, local, peer } => {
-                renderer.message(
-                    Some(*id),
-                    None,
-                    format_args!("INCOMING on {local} from {peer}"),
-                )?;
+                renderer.message(id, format_args!("INCOMING on {local} from {peer}"))?;
                 self.add_connection(id, peer.is_unix());
             }
 
             MapiEvent::Connecting { id, remote } => {
-                renderer.message(Some(*id), None, format_args!("CONNECTING to {remote}"))?;
+                renderer.message(id, format_args!("CONNECTING to {remote}"))?;
             }
 
             MapiEvent::Connected { id, .. } => {
-                renderer.message(Some(*id), None, "CONNECTED")?;
+                renderer.message(id, "CONNECTED")?;
             }
 
             MapiEvent::ConnectFailed {
@@ -66,19 +62,18 @@ impl State {
             } => {
                 let immediately = if *immediately { " immediately" } else { "" };
                 renderer.message(
-                    Some(*id),
-                    None,
+                    id,
                     format_args!("CONNECT FAILED{immediately}: {remote}: {error}"),
                 )?;
             }
 
             MapiEvent::End { id } => {
-                renderer.message(Some(*id), None, "ENDED")?;
+                renderer.message(id, "ENDED")?;
                 self.remove_connection(id);
             }
 
             MapiEvent::Aborted { id, error } => {
-                renderer.message(Some(*id), None, format_args!("ABORTED: {error}"))?;
+                renderer.message(id, format_args!("ABORTED: {error}"))?;
                 self.remove_connection(id);
             }
 
@@ -100,11 +95,7 @@ impl State {
             MapiEvent::ShutdownRead { id, direction } => {
                 self.check_incomplete(*id, *direction, renderer)?;
                 let sender = direction.sender();
-                renderer.message(
-                    Some(*id),
-                    Some(*direction),
-                    format_args!("{sender} stopped sending"),
-                )?;
+                renderer.message((*id, *direction), format_args!("{sender} stopped sending"))?;
             }
 
             MapiEvent::ShutdownWrite {
@@ -114,8 +105,7 @@ impl State {
             } => {
                 let receiver = direction.receiver();
                 renderer.message(
-                    Some(*id),
-                    Some(*direction),
+                    (*id, *direction),
                     format_args!("{receiver} has stopped receiving data, discarding {n} bytes"),
                 )?;
             }
@@ -123,8 +113,7 @@ impl State {
             MapiEvent::Oob(id, direction, byte) => {
                 let sender = direction.sender();
                 renderer.message(
-                    Some(*id),
-                    Some(*direction),
+                    (*id, *direction),
                     format_args!("{sender}  sent an Out-Of-Band message: {byte}"),
                 )?;
             }
@@ -172,7 +161,7 @@ impl State {
             Direction::Downstream => downstream,
         };
         if let Err(e) = acc.check_incomplete() {
-            renderer.message(Some(id), Some(direction), e)?;
+            renderer.message((id, direction), e)?;
         };
         Ok(())
     }
@@ -219,8 +208,7 @@ impl Accumulator {
 
     fn handle_raw(&mut self, renderer: &mut Renderer, mut data: &[u8]) -> Result<(), io::Error> {
         renderer.header(
-            self.id,
-            self.direction,
+            (self.id, self.direction),
             &[&format_args!("{n} bytes", n = data.len())],
         )?;
         let mut n = 0;
@@ -267,13 +255,13 @@ impl Accumulator {
                     } else {
                         "incomplete block before error"
                     };
-                    renderer.header(self.id, self.direction, &[&kind])?;
+                    renderer.header((self.id, self.direction), &[&kind])?;
                     self.dump_frame_as_binary(&self.buf, renderer)?;
                     renderer.footer(&[])?;
                     self.buf.clear();
                     self.level = Level::Raw;
                 }
-                renderer.message(Some(self.id), Some(self.direction), "mapi protocol error")?;
+                renderer.message((self.id, self.direction), "mapi protocol error")?;
                 self.error_reported = true;
                 self.level = Level::Raw;
                 return self.handle_raw(renderer, whole);
@@ -319,8 +307,7 @@ impl Accumulator {
             "block"
         };
         renderer.header(
-            self.id,
-            self.direction,
+            (self.id, self.direction),
             &[&format, &kind, &format_args!("{len} bytes")],
         )?;
 

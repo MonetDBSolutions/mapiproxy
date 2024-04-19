@@ -1,5 +1,6 @@
 use core::fmt;
 use std::{
+    borrow::Borrow,
     fmt::Display,
     io::{self, BufWriter, Write},
     mem,
@@ -15,7 +16,8 @@ pub struct Renderer {
     timing: TrackTime,
     out: BufWriter<Box<dyn io::Write + 'static + Send>>,
     current_style: Style,
-    at_start: Option<Style>, // if Some(s), we're at line start, style to be reset to s
+    desired_style: Style,
+    at_start: bool,
 }
 
 impl Renderer {
@@ -25,123 +27,129 @@ impl Renderer {
             colored,
             out: buffered,
             current_style: Style::Normal,
-            at_start: Some(Style::Normal),
+            desired_style: Style::Normal,
+            at_start: true,
             timing: TrackTime::new(),
         }
     }
 
-    fn show_elapsed_time(&mut self) -> io::Result<()> {
-        let print_sep = self.timing.activity();
-        if print_sep {
-            writeln!(self.out)?;
-        }
-        if let Some(announcement) = self.timing.announcement() {
-            let message = format!("TIME is {announcement}");
-            self.message_no_check_time(None, None, &message)?;
-            writeln!(self.out)?;
-        }
-        Ok(())
-    }
-
-    pub fn set_timestamp(&mut self, timestamp: &Timestamp) {
+    pub fn timestamp(&mut self, timestamp: &Timestamp) {
         self.timing.set_time(timestamp);
     }
 
     pub fn message(
         &mut self,
-        id: Option<ConnectionId>,
-        direction: Option<Direction>,
+        context: impl Into<Context>,
         message: impl Display,
     ) -> io::Result<()> {
-        self.show_elapsed_time()?;
-        self.message_no_check_time(id, direction, &message)
+        self.render_timing()?;
+        self.render_message(&context.into(), &message)
     }
 
-    fn message_no_check_time(
+    fn render_timing(&mut self) -> io::Result<()> {
+        let print_sep = self.timing.register_activity();
+        if print_sep {
+            self.nl()?;
+        }
+        if let Some(announcement) = self.timing.announcement() {
+            self.render_message(&Context::empty(), &(format_args!("TIME is {announcement}")))?;
+            self.nl()?;
+        }
+        Ok(())
+    }
+
+    fn render_message(
         &mut self,
-        id: Option<ConnectionId>,
-        direction: Option<Direction>,
+        context: &Context,
         message: &dyn Display,
     ) -> Result<(), io::Error> {
-        self.style(Style::Frame)?;
-        writeln!(self.out, "‣{} {message}", IdStream::from((id, direction)))?;
-        self.style(Style::Normal)?;
+        self.style(Style::Frame);
+        self.fix_style()?;
+        write!(self.out, "‣{} {message}", context)?;
+        self.nl()?;
         self.out.flush()?;
         Ok(())
     }
 
     pub fn header(
         &mut self,
-        id: ConnectionId,
-        direction: Direction,
+        context: impl Into<Context>,
         items: &[&dyn fmt::Display],
     ) -> io::Result<()> {
-        self.show_elapsed_time()?;
-        let old_style = self.style(Style::Frame)?;
-        write!(self.out, "┌{}", IdStream::from((id, direction)))?;
+        self.render_timing()?;
+        self.style(Style::Frame);
+        self.fix_style()?;
+        write!(self.out, "┌{}", context.into())?;
         let mut sep = " ";
         for item in items {
             write!(self.out, "{sep}{item}")?;
             sep = ", ";
         }
-        writeln!(self.out)?;
-        self.at_start = Some(old_style);
-        assert_eq!(self.current_style, Style::Frame);
+        self.nl()?;
+        self.at_start = true;
         Ok(())
     }
 
     pub fn footer(&mut self, items: &[&dyn fmt::Display]) -> io::Result<()> {
-        self.clear_line()?;
-        assert_eq!(self.current_style, Style::Frame);
+        if !self.at_start {
+            self.nl()?;
+        }
+        self.style(Style::Frame);
+        self.fix_style()?;
         write!(self.out, "└")?;
         let mut sep = " ";
         for item in items {
             write!(self.out, "{sep}{item}")?;
             sep = ", ";
         }
-        writeln!(self.out)?;
-        self.style(Style::Normal)?;
+        self.nl()?;
         self.out.flush()?;
         Ok(())
     }
 
     pub fn put(&mut self, data: impl AsRef<[u8]>) -> io::Result<()> {
-        if let Some(style) = self.at_start {
-            assert_eq!(self.current_style, Style::Frame);
+        if self.at_start {
+            let old_style = self.style(Style::Frame);
+            self.fix_style()?;
             self.out.write_all("│".as_bytes())?;
-            self.style(style)?;
-            self.at_start = None;
+            self.style(old_style);
+            self.at_start = false;
         }
+        self.fix_style()?;
         self.out.write_all(data.as_ref())?;
         Ok(())
     }
 
-    pub fn clear_line(&mut self) -> io::Result<()> {
-        if self.at_start.is_none() {
-            self.nl()?;
-        }
-        Ok(())
-    }
-
     pub fn nl(&mut self) -> io::Result<()> {
-        let old_style = self.style(Style::Frame)?;
+        let old_style = self.style(Style::Normal);
+        self.fix_style()?;
         writeln!(self.out)?;
-        self.at_start = Some(old_style);
+        self.style(old_style);
+        self.at_start = true;
         Ok(())
     }
 
-    pub fn style(&mut self, mut style: Style) -> io::Result<Style> {
-        if style == self.current_style {
-            return Ok(style);
+    pub fn at_start(&self) -> bool {
+        self.at_start
+    }
+
+    pub fn style(&mut self, mut style: Style) -> Style {
+        mem::swap(&mut self.desired_style, &mut style);
+        style
+    }
+
+    fn fix_style(&mut self) -> io::Result<()> {
+        if self.current_style == self.desired_style {
+            return Ok(());
         }
         if self.colored {
-            self.write_style(style)?;
+            self.write_escape_sequence(self.desired_style)?;
         }
-        mem::swap(&mut self.current_style, &mut style);
-        Ok(style)
+        self.current_style = self.desired_style;
+        Ok(())
     }
 
-    fn write_style(&mut self, style: Style) -> io::Result<()> {
+    fn write_escape_sequence(&mut self, style: Style) -> io::Result<()> {
         // Black=30 Red=31 Green=32 Yellow=33 Blue=34 Magenta=35 Cyan=36 White=37
 
         let escape_sequence = match style {
@@ -159,9 +167,15 @@ impl Renderer {
     }
 }
 
-pub struct IdStream(Option<ConnectionId>, Option<Direction>);
+pub struct Context(Option<ConnectionId>, Option<Direction>);
 
-impl fmt::Display for IdStream {
+impl Context {
+    pub fn empty() -> Self {
+        (None, None).into()
+    }
+}
+
+impl fmt::Display for Context {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if let Some(id) = self.0 {
             write!(f, " {id}")?;
@@ -173,17 +187,23 @@ impl fmt::Display for IdStream {
     }
 }
 
-impl From<(ConnectionId, Direction)> for IdStream {
-    fn from(value: (ConnectionId, Direction)) -> Self {
-        let (id, dir) = value;
-        IdStream(Some(id), Some(dir))
+impl<C: Borrow<ConnectionId>> From<C> for Context {
+    fn from(value: C) -> Self {
+        Context(Some(*value.borrow()), None)
     }
 }
 
-impl From<(Option<ConnectionId>, Option<Direction>)> for IdStream {
+impl From<(ConnectionId, Direction)> for Context {
+    fn from(value: (ConnectionId, Direction)) -> Self {
+        let (id, dir) = value;
+        Context(Some(id), Some(dir))
+    }
+}
+
+impl From<(Option<ConnectionId>, Option<Direction>)> for Context {
     fn from(value: (Option<ConnectionId>, Option<Direction>)) -> Self {
         let (id, dir) = value;
-        IdStream(id, dir)
+        Context(id, dir)
     }
 }
 
@@ -215,7 +235,7 @@ impl TrackTime {
     }
 
     /// There has been activity, return true if a separator line must be printed.
-    fn activity(&mut self) -> bool {
+    fn register_activity(&mut self) -> bool {
         let now = self.now().clone();
         let Some(prev) = self.last_activity.replace(now) else {
             return false;
