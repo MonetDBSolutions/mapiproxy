@@ -424,6 +424,7 @@ impl Binary {
             renderer.style(style);
             renderer.put([hi, lo])?;
         }
+        renderer.style(Style::Normal);
 
         for i in self.col..16 {
             self.put_sep(i, &mut cur_head, Style::Frame, renderer)?;

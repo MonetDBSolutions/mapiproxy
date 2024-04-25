@@ -9,10 +9,14 @@ use std::{
 
 use chrono::{DateTime, Local};
 
-use crate::event::{ConnectionId, Direction, Timestamp};
+use crate::{
+    colors::{Colors, EscapeSequence},
+    event::{ConnectionId, Direction, Timestamp},
+};
 
 pub struct Renderer {
-    colored: bool,
+    colors: &'static Colors,
+    color_stack: Vec<&'static EscapeSequence>,
     timing: TrackTime,
     out: BufWriter<Box<dyn io::Write + 'static + Send>>,
     current_style: Style,
@@ -21,10 +25,11 @@ pub struct Renderer {
 }
 
 impl Renderer {
-    pub fn new(colored: bool, out: Box<dyn io::Write + 'static + Send>) -> Self {
+    pub fn new(colors: &'static Colors, out: Box<dyn io::Write + 'static + Send>) -> Self {
         let buffered = BufWriter::with_capacity(4 * 8192, out);
         Renderer {
-            colored,
+            colors,
+            color_stack: vec![],
             out: buffered,
             current_style: Style::Normal,
             desired_style: Style::Normal,
@@ -64,7 +69,7 @@ impl Renderer {
         message: &dyn Display,
     ) -> Result<(), io::Error> {
         self.style(Style::Frame);
-        self.fix_style()?;
+        self.switch_style()?;
         write!(self.out, "‣{} {message}", context)?;
         self.nl()?;
         self.out.flush()?;
@@ -78,7 +83,7 @@ impl Renderer {
     ) -> io::Result<()> {
         self.render_timing()?;
         self.style(Style::Frame);
-        self.fix_style()?;
+        self.switch_style()?;
         write!(self.out, "┌{}", context.into())?;
         let mut sep = " ";
         for item in items {
@@ -95,7 +100,7 @@ impl Renderer {
             self.nl()?;
         }
         self.style(Style::Frame);
-        self.fix_style()?;
+        self.switch_style()?;
         write!(self.out, "└")?;
         let mut sep = " ";
         for item in items {
@@ -110,19 +115,19 @@ impl Renderer {
     pub fn put(&mut self, data: impl AsRef<[u8]>) -> io::Result<()> {
         if self.at_start {
             let old_style = self.style(Style::Frame);
-            self.fix_style()?;
+            self.switch_style()?;
             self.out.write_all("│".as_bytes())?;
             self.style(old_style);
             self.at_start = false;
         }
-        self.fix_style()?;
+        self.switch_style()?;
         self.out.write_all(data.as_ref())?;
         Ok(())
     }
 
     pub fn nl(&mut self) -> io::Result<()> {
         let old_style = self.style(Style::Normal);
-        self.fix_style()?;
+        self.switch_style()?;
         writeln!(self.out)?;
         self.style(old_style);
         self.at_start = true;
@@ -138,31 +143,37 @@ impl Renderer {
         style
     }
 
-    fn fix_style(&mut self) -> io::Result<()> {
-        if self.current_style == self.desired_style {
+    fn switch_style(&mut self) -> io::Result<()> {
+        let style = self.desired_style;
+        if style == self.current_style {
             return Ok(());
         }
-        if self.colored {
-            self.write_escape_sequence(self.desired_style)?;
+
+        while let Some(sequence) = self.color_stack.pop() {
+            self.out.write_all(sequence.disable.as_bytes())?;
         }
+
+        let colors = self.colors;
+        match style {
+            Style::Normal => self.push_style(&colors.normal)?,
+            Style::Error => {
+                self.push_style(&colors.red)?;
+                self.push_style(&colors.bold)?;
+            }
+            Style::Frame => self.push_style(&colors.cyan)?,
+            Style::Header => self.push_style(&colors.bold)?,
+            Style::Whitespace => self.push_style(&colors.red)?,
+            Style::Digit => self.push_style(&colors.green)?,
+            Style::Letter => self.push_style(&colors.blue)?,
+        }
+
         self.current_style = self.desired_style;
         Ok(())
     }
 
-    fn write_escape_sequence(&mut self, style: Style) -> io::Result<()> {
-        // Black=30 Red=31 Green=32 Yellow=33 Blue=34 Magenta=35 Cyan=36 White=37
-
-        let escape_sequence = match style {
-            Style::Normal => "",
-            Style::Header => "\u{1b}[1m",          // bold
-            Style::Frame => "\u{1b}[36m",          // cyan
-            Style::Error => "\u{1b}[1m\u{1b}[31m", // bold red
-            Style::Whitespace => "\u{1b}[31m",     // red
-            Style::Digit => "\u{1b}[32m",          // green
-            Style::Letter => "\u{1b}[34m",         // blue
-        };
-        self.out.write_all(b"\x1b[m")?; // NORMAL
-        self.out.write_all(escape_sequence.as_bytes())?;
+    fn push_style(&mut self, seq: &'static EscapeSequence) -> io::Result<()> {
+        self.out.write_all(seq.enable.as_bytes())?;
+        self.color_stack.push(seq);
         Ok(())
     }
 }

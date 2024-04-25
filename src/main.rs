@@ -1,6 +1,7 @@
 #![doc = include_str!("../README.md")]
 
 mod addr;
+mod colors;
 mod event;
 mod mapi;
 mod pcap;
@@ -17,6 +18,7 @@ use std::{io, panic, process, thread};
 use addr::MonetAddr;
 use anyhow::{bail, Context, Result as AResult};
 use argsplitter::{ArgError, ArgSplitter};
+use colors::{NO_COLORS, VT100_COLORS};
 use event::{MapiEvent, Timestamp};
 use pcap::Tracker;
 
@@ -53,7 +55,7 @@ fn mymain() -> AResult<()> {
     let mut pcap_file: Option<PathBuf> = None;
     let mut level = None;
     let mut force_binary = false;
-    let mut colored = None;
+    let mut colors = None;
 
     let mut args = ArgSplitter::from_env();
     while let Some(flag) = args.flag()? {
@@ -65,10 +67,10 @@ fn mymain() -> AResult<()> {
             "-r" | "--raw" => level = Some(Level::Raw),
             "-B" | "--binary" => force_binary = true,
             "--color" => {
-                colored = match args.param()?.to_lowercase().as_str() {
-                    "always" => Some(true),
+                colors = match args.param()?.to_lowercase().as_str() {
+                    "always" => Some(VT100_COLORS),
                     "auto" => None,
-                    "never" => Some(false),
+                    "never" => Some(NO_COLORS),
                     other => bail!("--color={other}: must be 'always', 'auto' or 'never'"),
                 }
             }
@@ -102,19 +104,22 @@ fn mymain() -> AResult<()> {
 
     args.no_more_stashed()?;
 
-    let colored_default;
+    let default_colors;
     let out: Box<dyn io::Write + Send + 'static> = if let Some(p) = output_file {
         let f = File::create(&p)
             .with_context(|| format!("could not open output file {}", p.display()))?;
-        colored_default = false;
+        default_colors = NO_COLORS;
         Box::new(f)
     } else {
         let out = io::stdout();
-        colored_default = is_terminal::is_terminal(&out);
+        default_colors = if is_terminal::is_terminal(&out) {
+            VT100_COLORS
+        } else {
+            NO_COLORS
+        };
         Box::new(out)
     };
-    let colored = colored.unwrap_or(colored_default);
-    let mut renderer = Renderer::new(colored, out);
+    let mut renderer = Renderer::new(colors.unwrap_or(default_colors), out);
 
     let mapi_state = mapi::State::new(level, force_binary);
 
