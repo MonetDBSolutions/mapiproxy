@@ -1,9 +1,12 @@
 use std::io::{self, ErrorKind};
-use std::{fs, net};
+use std::net;
 
 use mio::net::{TcpListener, TcpStream};
+
 #[cfg(unix)]
 use mio::net::{UnixListener, UnixStream};
+#[cfg(unix)]
+use std::fs;
 
 use crate::addr::Addr;
 
