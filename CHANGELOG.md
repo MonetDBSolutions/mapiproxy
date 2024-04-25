@@ -5,6 +5,9 @@ What changed in mapiproxy, per version
 
 ## mapiproxy NEXTVERSION - YYYY-MM-DD
 
+
+## mapiproxy 0.6.2 - 2024-04-25
+
 - Add -o or --output= option to direct output to a file.
 
 - Print timestamp marker before the first message of each minute.
