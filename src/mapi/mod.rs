@@ -50,7 +50,7 @@ impl State {
                 renderer.message(id, format_args!("CONNECTING to {remote}"))?;
             }
 
-            MapiEvent::Connected { id, .. } => {
+            MapiEvent::Connected { id } => {
                 renderer.message(id, "CONNECTED")?;
             }
 

@@ -84,7 +84,7 @@ pub enum MapiEvent {
     Connecting { id: ConnectionId, remote: Addr },
 
     /// Server has accepted the new connection
-    Connected { id: ConnectionId, peer: Addr },
+    Connected { id: ConnectionId },
 
     /// The connection has ended peacefully, no more events on this
     /// [ConnectionId] will be reported.
@@ -212,11 +212,8 @@ impl<'a> ConnectionSink<'a> {
     }
 
     /// Emit a [MapiEvent::Connected] event.
-    pub fn emit_connected(&mut self, remote: Addr) {
-        self.0.emit_event(MapiEvent::Connected {
-            id: self.id(),
-            peer: remote,
-        });
+    pub fn emit_connected(&mut self) {
+        self.0.emit_event(MapiEvent::Connected { id: self.id() });
     }
 
     /// Emit a [MapiEvent::End] event.

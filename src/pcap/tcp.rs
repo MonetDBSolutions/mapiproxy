@@ -115,10 +115,7 @@ impl TcpTracker {
         let id = upstream.id;
         let downstream = StreamState::new(id, Direction::Downstream, seqno.wrapping_add(1));
 
-        let ev = MapiEvent::Connected {
-            id,
-            peer: key.src.into(),
-        };
+        let ev = MapiEvent::Connected { id };
         handler(timestamp, ev)?;
 
         self.streams.insert(key, downstream);

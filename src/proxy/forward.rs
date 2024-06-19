@@ -185,8 +185,8 @@ impl Connecting {
         // If it succeeded or if we're still waiting, handle that here.
         // Otherwise, we'll have to report the error and try another address
         let error = match established {
-            Ok(Some(peer)) => {
-                sink.emit_connected(peer);
+            Ok(Some(_peer)) => {
+                sink.emit_connected();
                 let running = Running::from(client, server)?;
                 // kickstart it by running its process method too
                 return running.process(sink, registry);
