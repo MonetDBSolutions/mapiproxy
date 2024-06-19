@@ -11,7 +11,7 @@ use std::{
 use std::path::Path;
 
 #[cfg(unix)]
-use mio::net::SocketAddr as UnixSocketAddr;
+use std::os::unix::net::SocketAddr as UnixSocketAddr;
 
 use lazy_regex::{regex_captures, regex_is_match};
 
