@@ -9,7 +9,7 @@ mod proxy;
 mod render;
 
 use std::fs::File;
-use std::panic::PanicInfo;
+use std::panic::PanicHookInfo;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::time::SystemTime;
@@ -187,7 +187,7 @@ fn install_ctrl_c_handler(trigger: Box<dyn Fn() + Send + Sync>) -> AResult<()> {
 
 fn install_panic_hook() {
     let orig_hook = panic::take_hook();
-    let my_hook = Box::new(move |panic_info: &PanicInfo<'_>| {
+    let my_hook = Box::new(move |panic_info: &PanicHookInfo<'_>| {
         orig_hook(panic_info);
         process::exit(1);
     });
