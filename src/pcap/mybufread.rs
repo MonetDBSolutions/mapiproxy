@@ -26,7 +26,7 @@ impl<'a> MyBufReader<'a> {
     }
 }
 
-impl<'a> Read for MyBufReader<'a> {
+impl Read for MyBufReader<'_> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let data = self.fill_buf()?;
         let n = data.len().min(buf.len());
@@ -36,7 +36,7 @@ impl<'a> Read for MyBufReader<'a> {
     }
 }
 
-impl<'a> BufRead for MyBufReader<'a> {
+impl BufRead for MyBufReader<'_> {
     fn fill_buf(&mut self) -> io::Result<&[u8]> {
         assert_eq!(self.buffer.len(), self.buffer.capacity());
         if self.data_start == self.data_end {
