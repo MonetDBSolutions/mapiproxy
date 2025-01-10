@@ -18,7 +18,9 @@ jobs:
           - os: linux
             runner: ubuntu-20.04
           - os: macos-intel
-            runner: macos-11
+            runner: macos-13
+          - os: macos-arm
+            runner: macos-14
     runs-on: ${{ matrix.runner }}
     steps:
       - name: check out code
