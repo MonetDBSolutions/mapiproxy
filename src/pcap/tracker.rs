@@ -1,7 +1,7 @@
 use std::{io, net::IpAddr};
 
 use anyhow::{bail, Result as AResult};
-use etherparse::{InternetSlice, IpNumber, Ipv4Slice, Ipv6Slice, SlicedPacket, TcpSlice};
+use etherparse::{IpNumber,  LaxIpv4Slice, LaxIpv6Slice, LaxNetSlice, LaxSlicedPacket, TcpSlice};
 
 use crate::event::{MapiEvent, Timestamp};
 
@@ -28,16 +28,16 @@ impl<'a> Tracker<'a> {
 
     /// Process the given packet as an Ethernet frame.
     pub fn process_ethernet(&mut self, timestamp: &Timestamp, data: &[u8]) -> AResult<()> {
-        let ether_slice = SlicedPacket::from_ethernet(data)?;
+        let ether_slice = LaxSlicedPacket::from_ethernet(data)?;
         match &ether_slice.net {
-            Some(InternetSlice::Ipv4(inet4)) => self.handle_ipv4(timestamp, inet4),
-            Some(InternetSlice::Ipv6(inet6)) => self.handle_ipv6(timestamp, inet6),
+            Some(LaxNetSlice::Ipv4(inet4)) => self.handle_ipv4(timestamp, inet4),
+            Some(LaxNetSlice::Ipv6(inet6)) => self.handle_ipv6(timestamp, inet6),
             None => Ok(()),
         }
     }
 
     /// Examine IPv6 packet. If it's a TCP packet and not fragmented, hand it to [Self::handle_tcp]
-    pub fn handle_ipv6(&mut self, timestamp: &Timestamp, ipv6: &Ipv6Slice) -> AResult<()> {
+    pub fn handle_ipv6(&mut self, timestamp: &Timestamp, ipv6: &LaxIpv6Slice) -> AResult<()> {
         if ipv6.is_payload_fragmented() {
             bail!("pcap file contains fragmented ipv6 packet, not supported");
         }
@@ -57,7 +57,7 @@ impl<'a> Tracker<'a> {
     }
 
     /// Examine IPv4 packet. If it's a TCP packet and not fragmented, hand it to [Self::handle_tcp]
-    pub fn handle_ipv4(&mut self, timestamp: &Timestamp, ipv4: &Ipv4Slice) -> AResult<()> {
+    pub fn handle_ipv4(&mut self, timestamp: &Timestamp, ipv4: &LaxIpv4Slice) -> AResult<()> {
         if ipv4.is_payload_fragmented() {
             bail!("pcap file contains fragmented ipv4 packet, not supported");
         }

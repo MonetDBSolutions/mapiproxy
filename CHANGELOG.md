@@ -5,6 +5,9 @@ What changed in mapiproxy, per version
 
 ## mapiproxy NEXTVERSION - YYYY-MM-DD
 
+- Make pcap parsing more permissive. Some traces 'in the wild' have incorrect
+  length fields that don't matter much.
+
 
 ## mapiproxy 0.6.2 - 2024-04-25
 
