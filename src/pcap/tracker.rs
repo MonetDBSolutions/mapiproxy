@@ -32,7 +32,7 @@ impl<'a> Tracker<'a> {
         match &ether_slice.net {
             Some(LaxNetSlice::Ipv4(inet4)) => self.handle_ipv4(timestamp, inet4),
             Some(LaxNetSlice::Ipv6(inet6)) => self.handle_ipv6(timestamp, inet6),
-            None => Ok(()),
+            _ => Ok(()),
         }
     }
 
