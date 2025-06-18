@@ -13,6 +13,8 @@ use crate::{
 
 use self::analyzer::Analyzer;
 
+const BINARY_BYTES_PER_LINE: usize = 16;
+
 #[derive(Debug)]
 pub struct State {
     level: Level,
@@ -372,14 +374,14 @@ impl Accumulator {
 
 #[derive(Debug)]
 struct Binary {
-    row: [(u8, Style); 16],
+    row: [(u8, Style); BINARY_BYTES_PER_LINE],
     col: usize,
 }
 
 impl Binary {
     fn new() -> Self {
         Binary {
-            row: [(0, Style::Normal); 16],
+            row: [(0, Style::Normal); BINARY_BYTES_PER_LINE],
             col: 0,
         }
     }
@@ -397,7 +399,7 @@ impl Binary {
         self.row[self.col] = (byte, style);
         self.col += 1;
 
-        if self.col == 16 {
+        if self.col == BINARY_BYTES_PER_LINE {
             self.write_out(renderer, false)
         } else {
             Ok(())
@@ -426,14 +428,14 @@ impl Binary {
         }
         renderer.style(Style::Normal);
 
-        for i in self.col..16 {
+        for i in self.col..BINARY_BYTES_PER_LINE {
             self.put_sep(i, &mut cur_head, Style::Frame, renderer)?;
             renderer.put(b"__")?;
         }
 
         // if the sep includes a style change, this is its
         // chance to wrap it up
-        self.put_sep(16, &mut cur_head, Style::Normal, renderer)?;
+        self.put_sep(BINARY_BYTES_PER_LINE, &mut cur_head, Style::Normal, renderer)?;
 
         for (byte, style) in &self.row[..self.col] {
             renderer.style(*style);
@@ -453,7 +455,7 @@ impl Binary {
         style: Style,
         renderer: &mut Renderer,
     ) -> Result<(), io::Error> {
-        let extra_space: [u8; 17] = [
+        let extra_space: [u8; BINARY_BYTES_PER_LINE + 1] = [
             0, 0, 0, 0, //
             1, 0, 0, 0, //
             2, 0, 0, 0, //
