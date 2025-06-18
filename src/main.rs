@@ -28,6 +28,8 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub const USAGE: &str = include_str!("usage.txt");
 
+pub const DEFAULT_BRIEF: u32 = 3;
+
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
 enum Level {
     Raw,
@@ -56,6 +58,7 @@ fn mymain() -> AResult<()> {
     let mut level = None;
     let mut force_binary = false;
     let mut colors = None;
+    let mut _brief: Option<u32> = None;
 
     let mut args = ArgSplitter::from_env();
     while let Some(flag) = args.flag()? {
@@ -73,6 +76,17 @@ fn mymain() -> AResult<()> {
                     "never" => Some(NO_COLORS),
                     other => bail!("--color={other}: must be 'always', 'auto' or 'never'"),
                 }
+            }
+            "--brief" => {
+                _brief = if args.has_param_attached() {
+                    let s = args.param()?;
+                    let Ok(n) = s.parse() else {
+                        bail!("--brief={s}: must be valid number of lines")
+                    };
+                    Some(n)
+                } else {
+                    Some(DEFAULT_BRIEF)
+                };
             }
             "--help" => {
                 println!("Mapiproxy version {VERSION}");
