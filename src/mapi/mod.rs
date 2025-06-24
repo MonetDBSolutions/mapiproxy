@@ -1,3 +1,4 @@
+mod abbreviate;
 mod analyzer;
 
 use std::{

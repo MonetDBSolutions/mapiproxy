@@ -2,7 +2,7 @@ use core::fmt;
 use std::{
     borrow::Borrow,
     fmt::Display,
-    io::{self, BufWriter, Write},
+    io::{self, Write},
     mem,
     time::Duration,
 };
@@ -12,13 +12,15 @@ use chrono::{DateTime, Local};
 use crate::{
     colors::{Colors, EscapeSequence},
     event::{ConnectionId, Direction, Timestamp},
+    headtail::HeadTail,
 };
 
 pub struct Renderer {
+    out: HeadTail<Box<dyn io::Write + 'static + Send>>,
     colors: &'static Colors,
+    abbreviate: Option<u32>,
     color_stack: Vec<&'static EscapeSequence>,
     timing: TrackTime,
-    out: BufWriter<Box<dyn io::Write + 'static + Send>>,
     current_style: Style,
     desired_style: Style,
     at_start: bool,
@@ -26,16 +28,21 @@ pub struct Renderer {
 
 impl Renderer {
     pub fn new(colors: &'static Colors, out: Box<dyn io::Write + 'static + Send>) -> Self {
-        let buffered = BufWriter::with_capacity(4 * 8192, out);
+        let headtail = HeadTail::new(out);
         Renderer {
+            out: headtail,
             colors,
+            abbreviate: None,
             color_stack: vec![],
-            out: buffered,
             current_style: Style::Normal,
             desired_style: Style::Normal,
             at_start: true,
             timing: TrackTime::new(),
         }
+    }
+
+    pub fn set_brief(&mut self, brief: u32) {
+        self.abbreviate = Some(brief);
     }
 
     pub fn timestamp(&mut self, timestamp: &Timestamp) {
@@ -70,7 +77,7 @@ impl Renderer {
     ) -> Result<(), io::Error> {
         self.style(Style::Frame);
         self.switch_style()?;
-        write!(self.out, "‣{} {message}", context)?;
+        write!(self.out.format_line(), "‣{} {message}", context)?;
         self.nl()?;
         self.out.flush()?;
         Ok(())
@@ -84,14 +91,18 @@ impl Renderer {
         self.render_timing()?;
         self.style(Style::Frame);
         self.switch_style()?;
-        write!(self.out, "┌{}", context.into())?;
+        let mut out = self.out.format_line();
+        write!(out, "┌{}", context.into())?;
         let mut sep = " ";
         for item in items {
-            write!(self.out, "{sep}{item}")?;
+            write!(out, "{sep}{item}")?;
             sep = ", ";
         }
         self.nl()?;
         self.at_start = true;
+        if let Some(brief) = self.abbreviate {
+            self.out.head_tail(brief, brief);
+        }
         Ok(())
     }
 
@@ -99,12 +110,30 @@ impl Renderer {
         if !self.at_start {
             self.nl()?;
         }
+        if self.abbreviate.is_some() {
+            let tail = self.out.finish_tail()?;
+            let old = self.style(Style::Frame);
+            self.switch_style()?;
+            let n = tail.skipped();
+            if n > 0 {
+                let lines = match n {
+                    1 => "line",
+                    _ => "lines",
+                };
+                write!(self.out.format_line(), "├ (skipped {n} {lines})")?;
+                self.out.nl()?;
+            }
+            self.out.put_tail(tail)?;
+            self.style(old);
+            self.switch_style()?;
+        }
         self.style(Style::Frame);
         self.switch_style()?;
-        write!(self.out, "└")?;
+        let mut out = self.out.format_line();
+        write!(out, "└")?;
         let mut sep = " ";
         for item in items {
-            write!(self.out, "{sep}{item}")?;
+            write!(out, "{sep}{item}")?;
             sep = ", ";
         }
         self.nl()?;
@@ -116,19 +145,19 @@ impl Renderer {
         if self.at_start {
             let old_style = self.style(Style::Frame);
             self.switch_style()?;
-            self.out.write_all("│".as_bytes())?;
+            self.out.put("│".as_bytes());
             self.style(old_style);
             self.at_start = false;
         }
         self.switch_style()?;
-        self.out.write_all(data.as_ref())?;
+        self.out.put(data.as_ref());
         Ok(())
     }
 
     pub fn nl(&mut self) -> io::Result<()> {
         let old_style = self.style(Style::Normal);
         self.switch_style()?;
-        writeln!(self.out)?;
+        self.out.nl()?;
         self.style(old_style);
         self.at_start = true;
         Ok(())
@@ -150,7 +179,7 @@ impl Renderer {
         }
 
         while let Some(sequence) = self.color_stack.pop() {
-            self.out.write_all(sequence.disable.as_bytes())?;
+            self.out.put(sequence.disable.as_bytes());
         }
 
         let colors = self.colors;
@@ -172,7 +201,7 @@ impl Renderer {
     }
 
     fn push_style(&mut self, seq: &'static EscapeSequence) -> io::Result<()> {
-        self.out.write_all(seq.enable.as_bytes())?;
+        self.out.put(seq.enable.as_bytes());
         self.color_stack.push(seq);
         Ok(())
     }

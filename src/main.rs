@@ -3,6 +3,7 @@
 mod addr;
 mod colors;
 mod event;
+mod headtail;
 mod mapi;
 mod pcap;
 mod proxy;
@@ -58,7 +59,7 @@ fn mymain() -> AResult<()> {
     let mut level = None;
     let mut force_binary = false;
     let mut colors = None;
-    let mut _brief: Option<u32> = None;
+    let mut brief: Option<u32> = None;
 
     let mut args = ArgSplitter::from_env();
     while let Some(flag) = args.flag()? {
@@ -78,7 +79,7 @@ fn mymain() -> AResult<()> {
                 }
             }
             "--brief" => {
-                _brief = if args.has_param_attached() {
+                brief = if args.has_param_attached() {
                     let s = args.param()?;
                     let Ok(n) = s.parse() else {
                         bail!("--brief={s}: must be valid number of lines")
@@ -134,6 +135,9 @@ fn mymain() -> AResult<()> {
         Box::new(out)
     };
     let mut renderer = Renderer::new(colors.unwrap_or(default_colors), out);
+    if let Some(lines) = brief {
+        renderer.set_brief(lines);
+    }
 
     let mapi_state = mapi::State::new(level, force_binary);
 

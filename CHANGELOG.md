@@ -5,6 +5,9 @@ What changed in mapiproxy, per version
 
 ## mapiproxy NEXTVERSION - YYYY-MM-DD
 
+- Add option `--brief[=N]` which shows only the first and last
+  N lines of each block.
+
 
 ## mapiproxy 0.6.3 - 2025-01-10
 
