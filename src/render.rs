@@ -19,6 +19,7 @@ pub struct Renderer {
     out: HeadTail<Box<dyn io::Write + 'static + Send>>,
     colors: &'static Colors,
     abbreviate: Option<u32>,
+    autoflush: bool,
     color_stack: Vec<&'static EscapeSequence>,
     timing: TrackTime,
     current_style: Style,
@@ -33,6 +34,7 @@ impl Renderer {
             out: headtail,
             colors,
             abbreviate: None,
+            autoflush: false,
             color_stack: vec![],
             current_style: Style::Normal,
             desired_style: Style::Normal,
@@ -43,6 +45,10 @@ impl Renderer {
 
     pub fn set_brief(&mut self, brief: u32) {
         self.abbreviate = Some(brief);
+    }
+
+    pub fn set_autoflush(&mut self, flush: bool) {
+        self.autoflush = flush;
     }
 
     pub fn timestamp(&mut self, timestamp: &Timestamp) {
@@ -79,7 +85,9 @@ impl Renderer {
         self.switch_style()?;
         write!(self.out.format_line(), "‣{} {message}", context)?;
         self.nl()?;
-        self.out.flush()?;
+        if self.autoflush {
+            self.out.flush()?;
+        }
         Ok(())
     }
 
@@ -137,7 +145,9 @@ impl Renderer {
             sep = ", ";
         }
         self.nl()?;
-        self.out.flush()?;
+        if self.autoflush {
+            self.out.flush()?;
+        }
         Ok(())
     }
 
@@ -204,6 +214,10 @@ impl Renderer {
         self.out.put(seq.enable.as_bytes());
         self.color_stack.push(seq);
         Ok(())
+    }
+
+    pub fn flush(&mut self) -> io::Result<()> {
+        self.out.flush()
     }
 }
 

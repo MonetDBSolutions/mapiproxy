@@ -13,6 +13,7 @@ Options:
     -r, --raw            Dump bytes as they come in
     -B, --binary         Force dumping as binary
     --brief[=N]          Only show first and last N (or 3) lines of each frame
+    --flush              Flush after each item (default 'true' on terminal)
     --color=WHEN         Colorize output (Options: 'always', 'auto', 'never')
     --help               Display this help message
     --version            Show version information

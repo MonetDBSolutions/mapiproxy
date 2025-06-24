@@ -60,6 +60,7 @@ fn mymain() -> AResult<()> {
     let mut force_binary = false;
     let mut colors = None;
     let mut brief: Option<u32> = None;
+    let mut autoflush = false;
 
     let mut args = ArgSplitter::from_env();
     while let Some(flag) = args.flag()? {
@@ -89,6 +90,7 @@ fn mymain() -> AResult<()> {
                     Some(DEFAULT_BRIEF)
                 };
             }
+            "--flush" => autoflush = true,
             "--help" => {
                 println!("Mapiproxy version {VERSION}");
                 println!();
@@ -127,14 +129,16 @@ fn mymain() -> AResult<()> {
         Box::new(f)
     } else {
         let out = io::stdout();
-        default_colors = if is_terminal::is_terminal(&out) {
-            VT100_COLORS
+        if is_terminal::is_terminal(&out) {
+            default_colors = VT100_COLORS;
+            autoflush = true;
         } else {
-            NO_COLORS
-        };
+            default_colors = NO_COLORS;
+        }
         Box::new(out)
     };
     let mut renderer = Renderer::new(colors.unwrap_or(default_colors), out);
+    renderer.set_autoflush(autoflush);
     if let Some(lines) = brief {
         renderer.set_brief(lines);
     }
@@ -145,9 +149,11 @@ fn mymain() -> AResult<()> {
         Source::Proxy {
             listen_addr,
             forward_addr,
-        } => run_proxy(listen_addr, forward_addr, mapi_state, &mut renderer),
-        Source::Pcap(path) => run_pcap(&path, mapi_state, &mut renderer),
+        } => run_proxy(listen_addr, forward_addr, mapi_state, &mut renderer)?,
+        Source::Pcap(path) => run_pcap(&path, mapi_state, &mut renderer)?,
     }
+    renderer.flush()?;
+    Ok(())
 }
 
 fn run_proxy(
