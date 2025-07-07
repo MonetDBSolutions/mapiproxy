@@ -83,7 +83,7 @@ impl Renderer {
     ) -> Result<(), io::Error> {
         self.style(Style::Frame);
         self.switch_style()?;
-        write!(self.out.format_line(), "‣{} {message}", context)?;
+        write!(self.out.format_line(), "‣{context} {message}")?;
         self.nl()?;
         if self.autoflush {
             self.out.flush()?;

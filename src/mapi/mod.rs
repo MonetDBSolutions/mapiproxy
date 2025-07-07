@@ -436,7 +436,12 @@ impl Binary {
 
         // if the sep includes a style change, this is its
         // chance to wrap it up
-        self.put_sep(BINARY_BYTES_PER_LINE, &mut cur_head, Style::Normal, renderer)?;
+        self.put_sep(
+            BINARY_BYTES_PER_LINE,
+            &mut cur_head,
+            Style::Normal,
+            renderer,
+        )?;
 
         for (byte, style) in &self.row[..self.col] {
             renderer.style(*style);

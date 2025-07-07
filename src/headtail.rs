@@ -1,8 +1,6 @@
 use std::{io, mem};
 
 use bstr::ByteSlice;
-use claim::assert_gt;
-use itertools::Itertools;
 
 use State::*;
 
@@ -49,6 +47,7 @@ struct TailState {
 }
 
 impl TailState {
+    #[cfg(debug_assertions)]
     fn nlines(&self) -> usize {
         self.lines.len()
     }
@@ -65,6 +64,7 @@ impl TailState {
         self.line(self.lines.len() - 1)
     }
 
+    #[cfg(debug_assertions)]
     fn lines(&self) -> impl Iterator<Item = usize> + '_ {
         let start = self.oldest_idx;
         let part1 = &self.lines[start..];
@@ -101,7 +101,9 @@ impl<W> HeadTail<W> {
     pub fn sanity_check(&self) {
         #[cfg(debug_assertions)]
         {
-            use claim::{assert_le, assert_lt};
+            use claim::{assert_le, assert_lt, assert_gt};
+            use itertools::Itertools;
+
             match self.state {
                 Passthrough => {}
                 Head { lines_left, .. } => assert_ne!(lines_left, 0),
@@ -300,9 +302,7 @@ impl<W: io::Write> HeadTail<W> {
         let tail = mem::take(&mut self.buf);
         let tail_start = tail_state.oldest_line();
         let linesbuf = mem::take(&mut tail_state.lines);
-        let skipped = tail_state
-            .newlines
-            .saturating_sub(tail_state.ntail);
+        let skipped = tail_state.newlines.saturating_sub(tail_state.ntail);
         // Recover the state from before we switched to tail mode
         self.buf = mem::take(&mut tail_state.head);
         self.aux2 = linesbuf;

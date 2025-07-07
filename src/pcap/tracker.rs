@@ -1,7 +1,7 @@
 use std::{io, net::IpAddr};
 
 use anyhow::{bail, Result as AResult};
-use etherparse::{IpNumber,  LaxIpv4Slice, LaxIpv6Slice, LaxNetSlice, LaxSlicedPacket, TcpSlice};
+use etherparse::{IpNumber, LaxIpv4Slice, LaxIpv6Slice, LaxNetSlice, LaxSlicedPacket, TcpSlice};
 
 use crate::event::{MapiEvent, Timestamp};
 
