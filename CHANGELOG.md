@@ -8,8 +8,8 @@ What changed in mapiproxy, per version
 - Add option `--brief[=N]` which shows only the first and last
   N lines of each block.
 
-- Do not flush after each item except on terminal or when `--flush`
-  is given.
+- Add option --flush=WHEN to control whether to flush the output after each
+  item. The default is 'always'.
 
 
 ## mapiproxy 0.6.3 - 2025-01-10

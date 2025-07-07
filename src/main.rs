@@ -13,6 +13,7 @@ use std::fs::File;
 use std::panic::PanicHookInfo;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
+use std::str::FromStr;
 use std::time::SystemTime;
 use std::{io, panic, process, thread};
 
@@ -47,6 +48,42 @@ enum Source {
     Pcap(PathBuf),
 }
 
+#[derive(Debug)]
+enum When {
+    Always,
+    Auto,
+    Never,
+}
+
+impl FromStr for When {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "always" => Ok(When::Always),
+            "auto" => Ok(When::Auto),
+            "never" => Ok(When::Never),
+            _ => bail!("invalid When: {s:?}, must be 'always', 'auto' or 'never'"),
+        }
+    }
+}
+
+impl When {
+    fn evaluate(&self) -> bool {
+        match self {
+            When::Always => true,
+            When::Never => false,
+            When::Auto => is_terminal::is_terminal(io::stdout()),
+        }
+    }
+
+    fn override_auto(&mut self, when: When) {
+        if let When::Auto = self {
+            *self = when;
+        }
+    }
+}
+
 fn main() -> ExitCode {
     argsplitter::main_support::report_errors(USAGE, mymain())
 }
@@ -58,9 +95,9 @@ fn mymain() -> AResult<()> {
     let mut pcap_file: Option<PathBuf> = None;
     let mut level = None;
     let mut force_binary = false;
-    let mut colors = None;
+    let mut colors = When::Auto;
     let mut brief: Option<u32> = None;
-    let mut autoflush = false;
+    let mut autoflush = When::Always;
 
     let mut args = ArgSplitter::from_env();
     while let Some(flag) = args.flag()? {
@@ -72,12 +109,7 @@ fn mymain() -> AResult<()> {
             "-r" | "--raw" => level = Some(Level::Raw),
             "-B" | "--binary" => force_binary = true,
             "--color" => {
-                colors = match args.param()?.to_lowercase().as_str() {
-                    "always" => Some(VT100_COLORS),
-                    "auto" => None,
-                    "never" => Some(NO_COLORS),
-                    other => bail!("--color={other}: must be 'always', 'auto' or 'never'"),
-                }
+                colors = args.param()?.parse()?;
             }
             "--brief" => {
                 brief = if args.has_param_attached() {
@@ -90,7 +122,9 @@ fn mymain() -> AResult<()> {
                     Some(DEFAULT_BRIEF)
                 };
             }
-            "--flush" => autoflush = true,
+            "--flush" => {
+                autoflush = args.param()?.parse()?;
+            }
             "--help" => {
                 println!("Mapiproxy version {VERSION}");
                 println!();
@@ -121,24 +155,24 @@ fn mymain() -> AResult<()> {
 
     args.no_more_stashed()?;
 
-    let default_colors;
     let out: Box<dyn io::Write + Send + 'static> = if let Some(p) = output_file {
+        colors.override_auto(When::Never);
         let f = File::create(&p)
             .with_context(|| format!("could not open output file {}", p.display()))?;
-        default_colors = NO_COLORS;
         Box::new(f)
     } else {
         let out = io::stdout();
-        if is_terminal::is_terminal(&out) {
-            default_colors = VT100_COLORS;
-            autoflush = true;
-        } else {
-            default_colors = NO_COLORS;
-        }
         Box::new(out)
     };
-    let mut renderer = Renderer::new(colors.unwrap_or(default_colors), out);
-    renderer.set_autoflush(autoflush);
+
+    let colors = if colors.evaluate() {
+        VT100_COLORS
+    } else {
+        NO_COLORS
+    };
+
+    let mut renderer = Renderer::new(colors, out);
+    renderer.set_autoflush(autoflush.evaluate());
     if let Some(lines) = brief {
         renderer.set_brief(lines);
     }

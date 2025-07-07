@@ -13,10 +13,13 @@ Options:
     -r, --raw            Dump bytes as they come in
     -B, --binary         Force dumping as binary
     --brief[=N]          Only show first and last N (or 3) lines of each frame
-    --flush              Flush after each item (default 'true' on terminal)
-    --color=WHEN         Colorize output (Options: 'always', 'auto', 'never')
+    --color=WHEN         Whether to colorize output, default 'auto'
+    --flush=WHEN         Whether to flush after each item, default 'always'
     --help               Display this help message
     --version            Show version information
+
+WHEN:
+    'always', 'auto' or 'never'. 'Auto' means only when writing to terminal.
 
 Experimental options:
     --pcap=FILE          Read network capture data from FILE (use '-' for stdin)

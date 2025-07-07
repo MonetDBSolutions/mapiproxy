@@ -35,9 +35,14 @@ Options:
     -b, --blocks         Dump individual blocks
     -r, --raw            Dump bytes as they come in
     -B, --binary         Force dumping as binary
-    --color=WHEN         Colorize output (Options: 'always', 'auto', 'never')
+    --brief[=N]          Only show first and last N (or 3) lines of each frame
+    --color=WHEN         Whether to colorize output, default 'auto'
+    --flush=WHEN         Whether to flush after each item, default 'always'
     --help               Display this help message
     --version            Show version information
+
+WHEN:
+    'always', 'auto' or 'never'. 'Auto' means only when writing to terminal.
 
 Experimental options:
     --pcap=FILE          Read network capture data from FILE (use '-' for stdin)
