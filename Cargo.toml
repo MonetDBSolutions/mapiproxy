@@ -2,7 +2,7 @@
 
 [package]
 name = "mapiproxy"
-version = "0.6.4-alpha.1"
+version = "0.6.4"
 description = "A proxy for debugging MonetDB's wire protocol"
 authors = [ "Joeri van Ruth <joeri.van.ruth@monetdbsolutions.com>" ]
 keywords = [ "monetdb", "mapi", "proxy" ]
